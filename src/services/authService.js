@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const UserModel = require("../models/userModel");
+const TokenBlacklistModel = require("../models/tokenBlacklistModel");
 
 const SALT_ROUNDS = 10;
 
@@ -23,7 +24,7 @@ const AuthService = {
         // Mã hóa mật khẩu
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // Tạo user
+        // Tạo user mới trong cơ sở dữ liệu
         const user = await UserModel.create({
             name,
             email,
@@ -54,20 +55,37 @@ const AuthService = {
             throw { status: 401, message: "Invalid email or password" };
         }
 
-        // Tạo JWT token
+        // Tạo JWT token với thời hạn 7 ngày
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
-        // Trả về user (không kèm password) và token
+        // Trả về thông tin user (không kèm password) và token
         const { password: _, ...userWithoutPassword } = user;
 
         return {
             user: userWithoutPassword,
             token
         };
+    },
+
+    /**
+     * Đăng xuất — thêm token vào danh sách đen
+     */
+    async logout(token) {
+        // Giải mã token để lấy thời gian hết hạn
+        const decoded = jwt.decode(token);
+        if (!decoded || !decoded.exp) {
+            throw { status: 400, message: "Invalid token" };
+        }
+
+        // Chuyển đổi thời gian hết hạn từ Unix timestamp sang Date
+        const expiresAt = new Date(decoded.exp * 1000);
+
+        // Thêm token vào danh sách đen
+        await TokenBlacklistModel.add(token, expiresAt);
     }
 };
 

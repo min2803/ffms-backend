@@ -55,6 +55,37 @@ const AuthController = {
                 message: "Internal server error"
             });
         }
+    },
+
+    /**
+     * Đăng xuất — vô hiệu hóa token hiện tại
+     */
+    async logout(req, res) {
+        try {
+            // Lấy token từ header Authorization
+            const authHeader = req.headers.authorization;
+            const token = authHeader.split(" ")[1];
+
+            // Thêm token vào danh sách đen
+            await AuthService.logout(token);
+
+            return res.status(200).json({
+                success: true,
+                message: "Logout successful"
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Logout error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
     }
 };
 
