@@ -28,6 +28,45 @@ const UserModel = {
             email,
             created_at: new Date()
         };
+    },
+
+    /**
+     * Tìm user theo ID
+     */
+    async findById(id) {
+        const [rows] = await db.execute(
+            "SELECT * FROM users WHERE id = ?",
+            [id]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
+     * Lấy danh sách tất cả user (không kèm password)
+     */
+    async findAll() {
+        const [rows] = await db.execute(
+            "SELECT id, name, email, created_at, updated_at FROM users"
+        );
+        return rows;
+    },
+
+    /**
+     * Cập nhật thông tin user theo ID
+     */
+    async updateById(id, fields) {
+        const keys = Object.keys(fields);
+        if (keys.length === 0) return this.findById(id);
+
+        const setClause = keys.map((key) => `${key} = ?`).join(", ");
+        const values = keys.map((key) => fields[key]);
+
+        await db.execute(
+            `UPDATE users SET ${setClause} WHERE id = ?`,
+            [...values, id]
+        );
+
+        return this.findById(id);
     }
 };
 

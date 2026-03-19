@@ -3,7 +3,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
-const { verifyToken } = require("./middlewares/authMiddleware");
+const usersRoutes = require("./routes/usersRoutes");
 
 const app = express();
 
@@ -23,14 +23,8 @@ app.get("/api/test", (req, res) => {
 // Route xác thực
 app.use("/auth", authRoutes);
 
-// Route được bảo vệ (dùng để test middleware verifyToken)
-app.get("/api/profile", verifyToken, (req, res) => {
-    res.json({
-        success: true,
-        message: "Protected route accessed",
-        data: req.user
-    });
-});
+// Route quản lý user
+app.use("/users", usersRoutes);
 
 const PORT = process.env.PORT || 5000;
 
