@@ -17,7 +17,7 @@ const UserModel = {
      */
     async create({ name, email, password }) {
         const [result] = await db.execute(
-            "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
             [name, email, password]
         );
 
