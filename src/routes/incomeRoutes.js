@@ -9,6 +9,9 @@ router.post("/", verifyToken, IncomeController.createIncome);
 // Lấy danh sách incomes theo household
 router.get("/", verifyToken, IncomeController.getIncomes);
 
+// Lấy chi tiết income theo ID
+router.get("/:id", verifyToken, IncomeController.getIncomeById);
+
 // Xóa income
 router.delete("/:id", verifyToken, IncomeController.deleteIncome);
 

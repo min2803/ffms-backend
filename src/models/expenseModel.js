@@ -52,6 +52,22 @@ const ExpenseModel = {
     },
 
     /**
+     * Tìm expense theo ID kèm thông tin user và category
+     */
+    async findByIdWithDetails(id) {
+        const [rows] = await db.execute(
+            `SELECT e.*, u.name AS user_name, u.email AS user_email,
+                    c.name AS category_name
+             FROM expenses e
+             JOIN users u ON e.user_id = u.id
+             JOIN categories c ON e.category_id = c.id
+             WHERE e.id = ?`,
+            [id]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
      * Tính tổng chi tiêu theo category trong một tháng cụ thể
      * Dùng để tính budget usage percentage
      */

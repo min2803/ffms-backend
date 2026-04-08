@@ -50,6 +50,20 @@ const IncomeModel = {
     },
 
     /**
+     * Tìm income theo ID kèm thông tin user
+     */
+    async findByIdWithDetails(id) {
+        const [rows] = await db.execute(
+            `SELECT i.*, u.name AS user_name, u.email AS user_email
+             FROM incomes i
+             JOIN users u ON i.user_id = u.id
+             WHERE i.id = ?`,
+            [id]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
      * Cập nhật income theo ID
      */
     async updateById(id, { amount, source, description, incomeDate }) {

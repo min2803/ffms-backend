@@ -9,7 +9,16 @@ router.post("/", verifyToken, HouseholdController.createHousehold);
 // Lấy thông tin household theo ID
 router.get("/me/:id", verifyToken, HouseholdController.getHousehold);
 
-// Thêm thành viên vào household
+// Cập nhật tên household — chỉ owner/admin trong household
+router.put("/:id", verifyToken, HouseholdController.updateHousehold);
+
+// Soft delete household — chỉ owner/admin trong household
+router.delete("/:id", verifyToken, HouseholdController.deleteHousehold);
+
+// Thêm thành viên vào household — chỉ owner/admin trong household
 router.post("/:id/members", verifyToken, HouseholdController.addMember);
+
+// Xóa thành viên khỏi household — chỉ owner/admin trong household
+router.delete("/:id/members/:userId", verifyToken, HouseholdController.removeMember);
 
 module.exports = router;

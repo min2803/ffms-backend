@@ -44,4 +44,29 @@ const verifyToken = async (req, res, next) => {
     }
 };
 
-module.exports = { verifyToken };
+/**
+ * Middleware phân quyền theo role (RBAC)
+ * Sử dụng sau verifyToken
+ * @param  {...string} roles - Danh sách role được phép truy cập
+ */
+const authorizeRole = (...roles) => {
+    return (req, res, next) => {
+        if (!req.user || !req.user.role) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied. No role found"
+            });
+        }
+
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied. Insufficient permissions"
+            });
+        }
+
+        next();
+    };
+};
+
+module.exports = { verifyToken, authorizeRole };

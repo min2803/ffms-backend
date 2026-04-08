@@ -20,22 +20,22 @@ const HouseholdModel = {
     },
 
     /**
-     * Tìm household theo ID
+     * Tìm household theo ID (chỉ lấy household chưa bị xóa)
      */
     async findById(id) {
         const [rows] = await db.execute(
-            "SELECT * FROM households WHERE id = ?",
+            "SELECT * FROM households WHERE id = ? AND (is_deleted = false OR is_deleted IS NULL)",
             [id]
         );
         return rows.length > 0 ? rows[0] : null;
     },
 
     /**
-     * Tìm household theo ID kèm danh sách thành viên
+     * Tìm household theo ID kèm danh sách thành viên (chỉ household chưa bị xóa)
      */
     async findByIdWithMembers(id) {
         const [household] = await db.execute(
-            "SELECT * FROM households WHERE id = ?",
+            "SELECT * FROM households WHERE id = ? AND (is_deleted = false OR is_deleted IS NULL)",
             [id]
         );
 
@@ -91,6 +91,46 @@ const HouseholdModel = {
     async getMemberRole(householdId, userId) {
         const member = await this.findMember(householdId, userId);
         return member ? member.role : null;
+    },
+
+    /**
+     * Cập nhật thông tin household theo ID
+     */
+    async updateById(id, fields) {
+        const keys = Object.keys(fields);
+        if (keys.length === 0) return this.findById(id);
+
+        const setClause = keys.map((key) => `${key} = ?`).join(", ");
+        const values = keys.map((key) => fields[key]);
+
+        await db.execute(
+            `UPDATE households SET ${setClause} WHERE id = ? AND (is_deleted = false OR is_deleted IS NULL)`,
+            [...values, id]
+        );
+
+        return this.findById(id);
+    },
+
+    /**
+     * Soft delete household — đánh dấu is_deleted = true
+     */
+    async softDelete(id) {
+        const [result] = await db.execute(
+            "UPDATE households SET is_deleted = true WHERE id = ? AND (is_deleted = false OR is_deleted IS NULL)",
+            [id]
+        );
+        return result.affectedRows > 0;
+    },
+
+    /**
+     * Xóa thành viên khỏi household
+     */
+    async removeMember(householdId, userId) {
+        const [result] = await db.execute(
+            "DELETE FROM household_members WHERE household_id = ? AND user_id = ?",
+            [householdId, userId]
+        );
+        return result.affectedRows > 0;
     }
 };
 

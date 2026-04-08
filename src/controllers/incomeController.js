@@ -75,6 +75,43 @@ const IncomeController = {
     },
 
     /**
+     * Lấy chi tiết income theo ID
+     */
+    async getIncomeById(req, res) {
+        try {
+            const userId = req.user.userId;
+            const incomeId = parseInt(req.params.id);
+
+            if (isNaN(incomeId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid income ID"
+                });
+            }
+
+            const income = await IncomeService.getIncomeById(userId, incomeId);
+
+            return res.status(200).json({
+                success: true,
+                message: "Income retrieved successfully",
+                data: income
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Get income by id error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    },
+
+    /**
      * Xóa income
      */
     async deleteIncome(req, res) {

@@ -47,6 +47,53 @@ const BudgetModel = {
             [householdId, categoryId, month, year]
         );
         return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
+     * Tìm budget theo ID
+     */
+    async findById(id) {
+        const [rows] = await db.execute(
+            "SELECT * FROM budgets WHERE id = ?",
+            [id]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
+     * Tìm budget theo ID kèm thông tin category
+     */
+    async findByIdWithDetails(id) {
+        const [rows] = await db.execute(
+            `SELECT b.*, c.name AS category_name
+             FROM budgets b
+             JOIN categories c ON b.category_id = c.id
+             WHERE b.id = ?`,
+            [id]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
+     * Cập nhật budget theo ID
+     */
+    async updateById(id, { amount }) {
+        await db.execute(
+            "UPDATE budgets SET amount = ? WHERE id = ?",
+            [amount, id]
+        );
+        return this.findByIdWithDetails(id);
+    },
+
+    /**
+     * Xóa budget theo ID
+     */
+    async deleteById(id) {
+        const [result] = await db.execute(
+            "DELETE FROM budgets WHERE id = ?",
+            [id]
+        );
+        return result.affectedRows > 0;
     }
 };
 

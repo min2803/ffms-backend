@@ -92,6 +92,25 @@ const IncomeService = {
     },
 
     /**
+     * Lấy chi tiết income theo ID — user phải là thành viên của household
+     */
+    async getIncomeById(userId, incomeId) {
+        // Kiểm tra income tồn tại
+        const income = await IncomeModel.findByIdWithDetails(incomeId);
+        if (!income) {
+            throw { status: 404, message: "Income not found" };
+        }
+
+        // Kiểm tra user là thành viên của household chứa income
+        const member = await HouseholdModel.findMember(income.household_id, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        return income;
+    },
+
+    /**
      * Cập nhật income — chỉ người tạo hoặc owner/admin của household mới được cập nhật
      */
     async updateIncome(userId, incomeId, { amount, source, description, incomeDate }) {

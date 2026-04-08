@@ -75,6 +75,43 @@ const ExpenseController = {
     },
 
     /**
+     * Lấy chi tiết expense theo ID
+     */
+    async getExpenseById(req, res) {
+        try {
+            const userId = req.user.userId;
+            const expenseId = parseInt(req.params.id);
+
+            if (isNaN(expenseId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid expense ID"
+                });
+            }
+
+            const expense = await ExpenseService.getExpenseById(userId, expenseId);
+
+            return res.status(200).json({
+                success: true,
+                message: "Expense retrieved successfully",
+                data: expense
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Get expense by id error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    },
+
+    /**
      * Cập nhật expense
      */
     async updateExpense(req, res) {

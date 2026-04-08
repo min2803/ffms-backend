@@ -2,8 +2,31 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const UserModel = require("../models/userModel");
 const TokenBlacklistModel = require("../models/tokenBlacklistModel");
+const RefreshTokenModel = require("../models/refreshTokenModel");
 
 const SALT_ROUNDS = 10;
+
+/**
+ * Tạo access token (ngắn hạn)
+ */
+const generateAccessToken = (user) => {
+    return jwt.sign(
+        { userId: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || "15m" }
+    );
+};
+
+/**
+ * Tạo refresh token (dài hạn)
+ */
+const generateRefreshToken = (user) => {
+    return jwt.sign(
+        { userId: user.id, email: user.email, role: user.role },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" }
+    );
+};
 
 const AuthService = {
     /**
@@ -13,6 +36,17 @@ const AuthService = {
         // Kiểm tra các trường bắt buộc
         if (!name || !email || !password) {
             throw { status: 400, message: "Name, email, and password are required" };
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw { status: 400, message: "Invalid email format" };
+        }
+
+        // Validate password length
+        if (password.length < 6) {
+            throw { status: 400, message: "Password must be at least 6 characters" };
         }
 
         // Kiểm tra email đã tồn tại chưa
@@ -35,7 +69,7 @@ const AuthService = {
     },
 
     /**
-     * Đăng nhập
+     * Đăng nhập — trả về accessToken và refreshToken
      */
     async login({ email, password }) {
         // Kiểm tra các trường bắt buộc
@@ -50,42 +84,94 @@ const AuthService = {
         }
 
         // So sánh mật khẩu
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             throw { status: 401, message: "Invalid email or password" };
         }
 
-        // Tạo JWT token với thời hạn 7 ngày
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: "7d" }
-        );
+        // Tạo access token và refresh token
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
 
-        // Trả về thông tin user (không kèm password) và token
-        const { password: _, ...userWithoutPassword } = user;
+        // Lưu refresh token vào database
+        const decoded = jwt.decode(refreshToken);
+        const expiresAt = new Date(decoded.exp * 1000);
+        await RefreshTokenModel.create(user.id, refreshToken, expiresAt);
+
+        // Trả về thông tin user (không kèm password) và tokens
+        const { password_hash, ...userWithoutPassword } = user;
 
         return {
             user: userWithoutPassword,
-            token
+            accessToken,
+            refreshToken
         };
     },
 
     /**
-     * Đăng xuất — thêm token vào danh sách đen
+     * Đăng xuất — vô hiệu hóa access token và xóa refresh token
      */
-    async logout(token) {
-        // Giải mã token để lấy thời gian hết hạn
-        const decoded = jwt.decode(token);
-        if (!decoded || !decoded.exp) {
-            throw { status: 400, message: "Invalid token" };
+    async logout(accessToken, refreshToken) {
+        // Vô hiệu hóa access token
+        const decoded = jwt.decode(accessToken);
+        if (decoded && decoded.exp) {
+            const expiresAt = new Date(decoded.exp * 1000);
+            await TokenBlacklistModel.add(accessToken, expiresAt);
         }
 
-        // Chuyển đổi thời gian hết hạn từ Unix timestamp sang Date
-        const expiresAt = new Date(decoded.exp * 1000);
+        // Xóa refresh token nếu có
+        if (refreshToken) {
+            await RefreshTokenModel.deleteByToken(refreshToken);
+        }
+    },
 
-        // Thêm token vào danh sách đen
-        await TokenBlacklistModel.add(token, expiresAt);
+    /**
+     * Refresh — tạo access token mới từ refresh token
+     */
+    async refresh(refreshToken) {
+        if (!refreshToken) {
+            throw { status: 400, message: "Refresh token is required" };
+        }
+
+        // Kiểm tra refresh token có tồn tại trong database
+        const storedToken = await RefreshTokenModel.findByToken(refreshToken);
+        if (!storedToken) {
+            throw { status: 401, message: "Invalid or expired refresh token" };
+        }
+
+        // Xác minh refresh token
+        let decoded;
+        try {
+            decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        } catch (error) {
+            // Token hết hạn hoặc không hợp lệ → xóa khỏi database
+            await RefreshTokenModel.deleteByToken(refreshToken);
+            throw { status: 401, message: "Invalid or expired refresh token" };
+        }
+
+        // Tìm user để đảm bảo vẫn tồn tại
+        const user = await UserModel.findById(decoded.userId);
+        if (!user) {
+            await RefreshTokenModel.deleteByToken(refreshToken);
+            throw { status: 401, message: "User not found" };
+        }
+
+        // Xóa refresh token cũ (rotation)
+        await RefreshTokenModel.deleteByToken(refreshToken);
+
+        // Tạo cặp token mới
+        const newAccessToken = generateAccessToken(user);
+        const newRefreshToken = generateRefreshToken(user);
+
+        // Lưu refresh token mới vào database
+        const newDecoded = jwt.decode(newRefreshToken);
+        const expiresAt = new Date(newDecoded.exp * 1000);
+        await RefreshTokenModel.create(user.id, newRefreshToken, expiresAt);
+
+        return {
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken
+        };
     }
 };
 

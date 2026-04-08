@@ -15,10 +15,10 @@ const UserModel = {
     /**
      * Tạo user mới
      */
-    async create({ name, email, password }) {
+    async create({ name, email, password, role = "user" }) {
         const [result] = await db.execute(
-            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
-            [name, email, password]
+            "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            [name, email, password, role]
         );
 
         // Trả về user đã tạo (không kèm password)
@@ -26,6 +26,7 @@ const UserModel = {
             id: result.insertId,
             name,
             email,
+            role,
             created_at: new Date()
         };
     },
@@ -46,7 +47,7 @@ const UserModel = {
      */
     async findAll() {
         const [rows] = await db.execute(
-            "SELECT id, name, email, created_at, updated_at FROM users"
+            "SELECT id, name, email, role, created_at, updated_at FROM users"
         );
         return rows;
     },
@@ -67,6 +68,17 @@ const UserModel = {
         );
 
         return this.findById(id);
+    },
+
+    /**
+     * Xóa user theo ID
+     */
+    async deleteById(id) {
+        const [result] = await db.execute(
+            "DELETE FROM users WHERE id = ?",
+            [id]
+        );
+        return result.affectedRows > 0;
     }
 };
 

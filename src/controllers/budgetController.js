@@ -81,6 +81,81 @@ const BudgetController = {
                 message: "Internal server error"
             });
         }
+    },
+
+    /**
+     * Cập nhật budget (amount)
+     */
+    async updateBudget(req, res) {
+        try {
+            const userId = req.user.userId;
+            const budgetId = parseInt(req.params.id);
+
+            if (isNaN(budgetId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid budget ID"
+                });
+            }
+
+            const { amount } = req.body;
+
+            const budget = await BudgetService.updateBudget(userId, budgetId, { amount });
+
+            return res.status(200).json({
+                success: true,
+                message: "Budget updated successfully",
+                data: budget
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Update budget error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    },
+
+    /**
+     * Xóa budget
+     */
+    async deleteBudget(req, res) {
+        try {
+            const userId = req.user.userId;
+            const budgetId = parseInt(req.params.id);
+
+            if (isNaN(budgetId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid budget ID"
+                });
+            }
+
+            await BudgetService.deleteBudget(userId, budgetId);
+
+            return res.status(200).json({
+                success: true,
+                message: "Budget deleted successfully"
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Delete budget error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
     }
 };
 

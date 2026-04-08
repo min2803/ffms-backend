@@ -26,10 +26,10 @@ app.get("/api/test", (req, res) => {
 });
 
 // Route xác thực
-app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
 
 // Route quản lý user
-app.use("/users", usersRoutes);
+app.use("/api/users", usersRoutes);
 
 // Route quản lý household
 app.use("/api/households", householdRoutes);

@@ -114,6 +114,61 @@ const BudgetService = {
         );
 
         return budgetsWithUsage;
+    },
+
+    /**
+     * Cập nhật budget — chỉ người tạo hoặc owner/admin của household
+     */
+    async updateBudget(userId, budgetId, { amount }) {
+        // Validate amount
+        if (!amount || amount <= 0) {
+            throw { status: 400, message: "amount must be a positive number" };
+        }
+
+        // Kiểm tra budget tồn tại
+        const budget = await BudgetModel.findById(budgetId);
+        if (!budget) {
+            throw { status: 404, message: "Budget not found" };
+        }
+
+        // Kiểm tra user là thành viên của household
+        const member = await HouseholdModel.findMember(budget.household_id, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        // Kiểm tra quyền: chỉ owner/admin mới được cập nhật
+        if (!["owner", "admin"].includes(member.role)) {
+            throw { status: 403, message: "Only owner or admin can update budget" };
+        }
+
+        // Cập nhật
+        const updatedBudget = await BudgetModel.updateById(budgetId, { amount });
+        return updatedBudget;
+    },
+
+    /**
+     * Xóa budget — chỉ owner/admin của household
+     */
+    async deleteBudget(userId, budgetId) {
+        // Kiểm tra budget tồn tại
+        const budget = await BudgetModel.findById(budgetId);
+        if (!budget) {
+            throw { status: 404, message: "Budget not found" };
+        }
+
+        // Kiểm tra user là thành viên của household
+        const member = await HouseholdModel.findMember(budget.household_id, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        // Kiểm tra quyền: chỉ owner/admin mới được xóa
+        if (!["owner", "admin"].includes(member.role)) {
+            throw { status: 403, message: "Only owner or admin can delete budget" };
+        }
+
+        await BudgetModel.deleteById(budgetId);
     }
 };
 

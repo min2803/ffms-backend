@@ -77,6 +77,25 @@ const ExpenseService = {
     },
 
     /**
+     * Lấy chi tiết expense theo ID — user phải là thành viên của household
+     */
+    async getExpenseById(userId, expenseId) {
+        // Kiểm tra expense tồn tại
+        const expense = await ExpenseModel.findByIdWithDetails(expenseId);
+        if (!expense) {
+            throw { status: 404, message: "Expense not found" };
+        }
+
+        // Kiểm tra user là thành viên của household chứa expense
+        const member = await HouseholdModel.findMember(expense.household_id, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        return expense;
+    },
+
+    /**
      * Cập nhật expense — chỉ người tạo hoặc owner/admin của household mới được cập nhật
      */
     async updateExpense(userId, expenseId, { categoryId, amount, description, expenseDate }) {

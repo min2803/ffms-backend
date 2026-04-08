@@ -30,7 +30,7 @@ const AuthController = {
     },
 
     /**
-     * Đăng nhập
+     * Đăng nhập — trả về accessToken và refreshToken
      */
     async login(req, res) {
         try {
@@ -58,16 +58,19 @@ const AuthController = {
     },
 
     /**
-     * Đăng xuất — vô hiệu hóa token hiện tại
+     * Đăng xuất — vô hiệu hóa access token và refresh token
      */
     async logout(req, res) {
         try {
-            // Lấy token từ header Authorization
+            // Lấy access token từ header Authorization
             const authHeader = req.headers.authorization;
-            const token = authHeader.split(" ")[1];
+            const accessToken = authHeader.split(" ")[1];
 
-            // Thêm token vào danh sách đen
-            await AuthService.logout(token);
+            // Lấy refresh token từ body (tùy chọn)
+            const { refreshToken } = req.body;
+
+            // Thêm access token vào blacklist và xóa refresh token
+            await AuthService.logout(accessToken, refreshToken);
 
             return res.status(200).json({
                 success: true,
@@ -81,6 +84,34 @@ const AuthController = {
                 });
             }
             console.error("Logout error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    },
+
+    /**
+     * Refresh — tạo access token mới từ refresh token
+     */
+    async refresh(req, res) {
+        try {
+            const { refreshToken } = req.body;
+            const tokens = await AuthService.refresh(refreshToken);
+
+            return res.status(200).json({
+                success: true,
+                message: "Token refreshed successfully",
+                data: tokens
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Refresh token error:", error);
             return res.status(500).json({
                 success: false,
                 message: "Internal server error"

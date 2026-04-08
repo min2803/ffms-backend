@@ -28,7 +28,7 @@ const HouseholdService = {
      * Lấy thông tin household theo ID — chỉ cho phép thành viên xem
      */
     async getHouseholdById(userId, householdId) {
-        // Kiểm tra household tồn tại
+        // Kiểm tra household tồn tại (đã lọc is_deleted = false)
         const household = await HouseholdModel.findByIdWithMembers(householdId);
         if (!household) {
             throw { status: 404, message: "Household not found" };
@@ -82,6 +82,88 @@ const HouseholdService = {
         const membership = await HouseholdModel.addMember(householdId, targetUserId, "member");
 
         return membership;
+    },
+
+    /**
+     * Cập nhật tên household — chỉ owner hoặc admin
+     */
+    async updateHousehold(requesterId, householdId, { name }) {
+        // Validate name
+        if (!name || name.trim().length === 0) {
+            throw { status: 400, message: "Household name is required" };
+        }
+
+        // Kiểm tra household tồn tại (đã lọc is_deleted = false)
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        // Kiểm tra quyền: chỉ owner hoặc admin trong household
+        const requesterRole = await HouseholdModel.getMemberRole(householdId, requesterId);
+        if (!requesterRole || !["owner", "admin"].includes(requesterRole)) {
+            throw { status: 403, message: "Only owner or admin can update household" };
+        }
+
+        // Cập nhật
+        const updatedHousehold = await HouseholdModel.updateById(householdId, {
+            name: name.trim()
+        });
+
+        return updatedHousehold;
+    },
+
+    /**
+     * Soft delete household — chỉ owner hoặc admin
+     * Đánh dấu is_deleted = true, không xóa dữ liệu thật
+     */
+    async deleteHousehold(requesterId, householdId) {
+        // Kiểm tra household tồn tại (đã lọc is_deleted = false)
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        // Kiểm tra quyền: chỉ owner hoặc admin trong household
+        const requesterRole = await HouseholdModel.getMemberRole(householdId, requesterId);
+        if (!requesterRole || !["owner", "admin"].includes(requesterRole)) {
+            throw { status: 403, message: "Only owner or admin can delete household" };
+        }
+
+        // Soft delete
+        await HouseholdModel.softDelete(householdId);
+    },
+
+    /**
+     * Xóa thành viên khỏi household — chỉ owner hoặc admin
+     * Không cho phép xóa owner
+     */
+    async removeMember(requesterId, householdId, targetUserId) {
+        // Kiểm tra household tồn tại (đã lọc is_deleted = false)
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        // Kiểm tra quyền: chỉ owner hoặc admin trong household
+        const requesterRole = await HouseholdModel.getMemberRole(householdId, requesterId);
+        if (!requesterRole || !["owner", "admin"].includes(requesterRole)) {
+            throw { status: 403, message: "Only owner or admin can remove members" };
+        }
+
+        // Kiểm tra target user có phải thành viên không
+        const targetMember = await HouseholdModel.findMember(householdId, targetUserId);
+        if (!targetMember) {
+            throw { status: 404, message: "Member not found in this household" };
+        }
+
+        // Không cho phép xóa owner
+        if (targetMember.role === "owner") {
+            throw { status: 400, message: "Cannot remove the owner from household" };
+        }
+
+        // Xóa thành viên
+        await HouseholdModel.removeMember(householdId, targetUserId);
     }
 };
 
