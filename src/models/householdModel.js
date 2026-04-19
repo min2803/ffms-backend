@@ -131,6 +131,28 @@ const HouseholdModel = {
             [householdId, userId]
         );
         return result.affectedRows > 0;
+    },
+
+    /**
+     * Tìm membership record theo PK (id của bảng household_members)
+     */
+    async findMemberById(membershipId) {
+        const [rows] = await db.execute(
+            "SELECT * FROM household_members WHERE id = ?",
+            [membershipId]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
+     * Cập nhật role của thành viên theo membership ID
+     */
+    async updateMemberRole(membershipId, role) {
+        await db.execute(
+            "UPDATE household_members SET role = ? WHERE id = ?",
+            [role, membershipId]
+        );
+        return this.findMemberById(membershipId);
     }
 };
 

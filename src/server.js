@@ -9,6 +9,11 @@ const incomeRoutes = require("./routes/incomeRoutes");
 const expenseRoutes = require("./routes/expenseRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
+const utilityRoutes = require("./routes/utilityRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
@@ -45,6 +50,21 @@ app.use("/api/budgets", budgetRoutes);
 
 // Route quản lý category
 app.use("/api/categories", categoryRoutes);
+
+// Route quản lý utilities
+app.use("/api/utilities", utilityRoutes);
+
+// Route dashboard
+app.use("/api/dashboard", dashboardRoutes);
+
+// Route reports
+app.use("/api/reports", reportRoutes);
+
+// Route admin (require admin role)
+app.use("/api/admin", adminRoutes);
+
+// Route notifications
+app.use("/api/notifications", notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -1,5 +1,6 @@
 const HouseholdModel = require("../models/householdModel");
 const UserModel = require("../models/userModel");
+const NotificationService = require("./notificationService");
 
 const HouseholdService = {
     /**
@@ -80,6 +81,13 @@ const HouseholdService = {
 
         // Thêm thành viên
         const membership = await HouseholdModel.addMember(householdId, targetUserId, "member");
+
+        // Auto notification
+        await NotificationService.create(
+            targetUserId,
+            "MEMBER_JOINED",
+            `Bạn đã được thêm vào household "${household.name}"`
+        );
 
         return membership;
     },
@@ -164,6 +172,99 @@ const HouseholdService = {
 
         // Xóa thành viên
         await HouseholdModel.removeMember(householdId, targetUserId);
+    },
+
+    /**
+     * Invite member vào household — chỉ owner hoặc admin
+     */
+    async inviteMember(requesterId, householdId, targetUserId) {
+        // Validate input
+        if (!householdId) {
+            throw { status: 400, message: "household_id is required" };
+        }
+        if (!targetUserId) {
+            throw { status: 400, message: "user_id is required" };
+        }
+
+        // Kiểm tra household tồn tại
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        // Kiểm tra quyền của requester (phải là owner hoặc admin)
+        const requesterRole = await HouseholdModel.getMemberRole(householdId, requesterId);
+        if (!requesterRole || !["owner", "admin"].includes(requesterRole)) {
+            throw { status: 403, message: "Only owner or admin can invite members" };
+        }
+
+        // Kiểm tra target user tồn tại
+        const targetUser = await UserModel.findById(targetUserId);
+        if (!targetUser) {
+            throw { status: 404, message: "User not found" };
+        }
+
+        // Kiểm tra user đã là thành viên chưa
+        const existingMember = await HouseholdModel.findMember(householdId, targetUserId);
+        if (existingMember) {
+            throw { status: 409, message: "User is already a member of this household" };
+        }
+
+        // Thêm thành viên với role mặc định là "member"
+        const membership = await HouseholdModel.addMember(householdId, targetUserId, "member");
+
+        // Auto notification
+        await NotificationService.create(
+            targetUserId,
+            "INVITE",
+            `Bạn được mời vào household "${household.name}"`
+        );
+
+        return membership;
+    },
+
+    /**
+     * Thay đổi role thành viên — chỉ owner mới được thay đổi
+     */
+    async changeMemberRole(requesterId, membershipId, newRole) {
+        // Validate role
+        if (!newRole) {
+            throw { status: 400, message: "role is required" };
+        }
+
+        const allowedRoles = ["admin", "member"];
+        if (!allowedRoles.includes(newRole)) {
+            throw { status: 400, message: `Invalid role. Allowed roles: ${allowedRoles.join(", ")}` };
+        }
+
+        // Tìm membership record
+        const membership = await HouseholdModel.findMemberById(membershipId);
+        if (!membership) {
+            throw { status: 404, message: "Membership not found" };
+        }
+
+        // Không cho phép thay đổi role của owner
+        if (membership.role === "owner") {
+            throw { status: 400, message: "Cannot change the role of the household owner" };
+        }
+
+        // Kiểm tra quyền: chỉ owner mới được thay đổi role
+        const requesterRole = await HouseholdModel.getMemberRole(membership.household_id, requesterId);
+        if (!requesterRole || requesterRole !== "owner") {
+            throw { status: 403, message: "Only the household owner can change member roles" };
+        }
+
+        // Cập nhật role
+        const updatedMembership = await HouseholdModel.updateMemberRole(membershipId, newRole);
+
+        // Auto notification
+        await NotificationService.create(
+            membership.user_id,
+            "ROLE_CHANGE",
+            `Vai trò của bạn đã được cập nhật thành "${newRole}"`
+        );
+
+        return updatedMembership;
     }
 };
 

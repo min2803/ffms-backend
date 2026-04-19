@@ -21,4 +21,10 @@ router.post("/:id/members", verifyToken, HouseholdController.addMember);
 // Xóa thành viên khỏi household — chỉ owner/admin trong household
 router.delete("/:id/members/:userId", verifyToken, HouseholdController.removeMember);
 
+// Invite member vào household — chỉ owner/admin trong household
+router.post("/invite", verifyToken, HouseholdController.inviteMember);
+
+// Thay đổi role thành viên trong household — chỉ owner
+router.patch("/members/:id/role", verifyToken, HouseholdController.changeMemberRole);
+
 module.exports = router;

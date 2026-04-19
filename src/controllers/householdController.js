@@ -222,6 +222,105 @@ const HouseholdController = {
                 message: "Internal server error"
             });
         }
+    },
+
+    /**
+     * Invite member vào household
+     * POST /api/households/invite
+     */
+    async inviteMember(req, res) {
+        try {
+            const requesterId = req.user.userId;
+            const { household_id, user_id } = req.body;
+
+            if (!household_id || isNaN(parseInt(household_id))) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Valid household_id is required"
+                });
+            }
+
+            if (!user_id || isNaN(parseInt(user_id))) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Valid user_id is required"
+                });
+            }
+
+            const membership = await HouseholdService.inviteMember(
+                requesterId,
+                parseInt(household_id),
+                parseInt(user_id)
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Member invited successfully",
+                data: membership
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Invite member error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    },
+
+    /**
+     * Thay đổi role thành viên trong household
+     * PATCH /api/households/members/:id/role
+     */
+    async changeMemberRole(req, res) {
+        try {
+            const requesterId = req.user.userId;
+            const membershipId = parseInt(req.params.id);
+            const { role } = req.body;
+
+            if (isNaN(membershipId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid membership ID"
+                });
+            }
+
+            if (!role || typeof role !== "string") {
+                return res.status(400).json({
+                    success: false,
+                    message: "role is required and must be a string"
+                });
+            }
+
+            const updatedMembership = await HouseholdService.changeMemberRole(
+                requesterId,
+                membershipId,
+                role.trim().toLowerCase()
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Member role updated successfully",
+                data: updatedMembership
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Change member role error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
     }
 };
 
