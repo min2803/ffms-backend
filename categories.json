@@ -1,0 +1,1 @@
+[{"Field":"id","Type":"int","Null":"NO","Key":"PRI","Default":null,"Extra":"auto_increment"},{"Field":"household_id","Type":"int","Null":"NO","Key":"MUL","Default":null,"Extra":""},{"Field":"name","Type":"varchar(100)","Null":"NO","Key":"","Default":null,"Extra":""},{"Field":"type","Type":"enum('income','expense')","Null":"NO","Key":"","Default":null,"Extra":""}]

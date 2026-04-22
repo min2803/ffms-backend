@@ -1,9 +1,6 @@
 const db = require("../config/db");
 
 const CategoryModel = {
-    /**
-     * Tìm category theo ID
-     */
     async findById(id) {
         const [rows] = await db.execute(
             "SELECT * FROM categories WHERE id = ?",
@@ -13,23 +10,28 @@ const CategoryModel = {
     },
 
     /**
-     * Lấy tất cả categories
+     * Lấy tất cả categories của một household
      */
-    async findAll() {
-        const [rows] = await db.execute("SELECT * FROM categories ORDER BY name ASC");
+    async findAllByHousehold(householdId) {
+        const [rows] = await db.execute(
+            "SELECT * FROM categories WHERE household_id = ? ORDER BY name ASC",
+            [householdId]
+        );
         return rows;
     },
 
     /**
-     * Tạo category mới
+     * Tạo category mới cho household
      */
-    async create({ name, type }) {
-        const [result] = await db.execute(
-            "INSERT INTO categories (name, type) VALUES (?, ?)",
-            [name, type || null]
+    async create({ householdId, name, type }, conn = null) {
+        const executor = conn || db;
+        const [result] = await executor.execute(
+            "INSERT INTO categories (household_id, name, type) VALUES (?, ?, ?)",
+            [householdId, name, type || null]
         );
         return {
             id: result.insertId,
+            household_id: householdId,
             name,
             type: type || null,
             created_at: new Date()
@@ -59,12 +61,12 @@ const CategoryModel = {
     },
 
     /**
-     * Tìm category theo tên (kiểm tra trùng lặp)
+     * Tìm category theo tên trong một household (kiểm tra trùng lặp)
      */
-    async findByName(name) {
+    async findByName(householdId, name) {
         const [rows] = await db.execute(
-            "SELECT * FROM categories WHERE name = ?",
-            [name]
+            "SELECT * FROM categories WHERE household_id = ? AND name = ?",
+            [householdId, name]
         );
         return rows.length > 0 ? rows[0] : null;
     }

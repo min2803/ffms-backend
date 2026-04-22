@@ -8,7 +8,7 @@ const ReportController = {
     async getExpenseByCategory(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const { fromDate, toDate } = req.query;
 
             if (isNaN(householdId)) {
@@ -49,7 +49,7 @@ const ReportController = {
     async getFinancial(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const { fromDate, toDate } = req.query;
 
             if (isNaN(householdId)) {
@@ -90,7 +90,7 @@ const ReportController = {
     async getTrend(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const { type, period, fromDate, toDate } = req.query;
 
             if (isNaN(householdId)) {
@@ -133,7 +133,7 @@ const ReportController = {
     async getDetail(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const { type, fromDate, toDate } = req.query;
 
             if (isNaN(householdId)) {

@@ -43,7 +43,7 @@ const BudgetController = {
     async getBudgets(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const month = parseInt(req.query.month);
             const year = parseInt(req.query.year) || new Date().getFullYear();
 

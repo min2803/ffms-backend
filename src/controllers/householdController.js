@@ -69,6 +69,40 @@ const HouseholdController = {
     },
 
     /**
+     * Lấy thông tin hộ gia đình của user hiện tại
+     * Tự động bootstrap nếu chưa có
+     */
+    async getMyHousehold(req, res) {
+        try {
+            const userId = req.user.userId;
+            
+            // Gọi bootstrap service để đảm bảo user có data
+            const household = await HouseholdService.ensureUserHasData(userId);
+
+            // Fetch đầy đủ thông tin kèm members
+            const fullHousehold = await HouseholdService.getHouseholdById(userId, household.id);
+
+            return res.status(200).json({
+                success: true,
+                message: "Household retrieved successfully",
+                data: fullHousehold
+            });
+        } catch (error) {
+            if (error.status) {
+                return res.status(error.status).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            console.error("Get my household error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    },
+
+    /**
      * Thêm thành viên vào household
      */
     async addMember(req, res) {

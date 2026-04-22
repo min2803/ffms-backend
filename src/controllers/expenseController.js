@@ -43,7 +43,8 @@ const ExpenseController = {
     async getExpenses(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
+            const type = req.query.type || "family";
 
             if (isNaN(householdId)) {
                 return res.status(400).json({
@@ -52,7 +53,7 @@ const ExpenseController = {
                 });
             }
 
-            const expenses = await ExpenseService.getExpensesByHousehold(userId, householdId);
+            const expenses = await ExpenseService.getExpensesByHousehold(userId, householdId, type);
 
             return res.status(200).json({
                 success: true,

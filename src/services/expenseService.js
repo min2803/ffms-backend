@@ -53,9 +53,9 @@ const ExpenseService = {
     },
 
     /**
-     * Lấy danh sách expenses theo household — chỉ thành viên mới xem được
+     * Lấy danh sách expenses theo household — hỗ trợ type (personal/family) và transform dữ liệu
      */
-    async getExpensesByHousehold(userId, householdId) {
+    async getExpensesByHousehold(userId, householdId, type = "family") {
         if (!householdId) {
             throw { status: 400, message: "householdId is required" };
         }
@@ -67,13 +67,86 @@ const ExpenseService = {
         }
 
         // Kiểm tra user là thành viên
-        const member = await HouseholdModel.findMember(householdId, userId);
-        if (!member) {
+        const members = await HouseholdModel.findMembersByHousehold(householdId);
+        const currentUserMember = members.find(m => m.user_id === userId);
+        if (!currentUserMember) {
             throw { status: 403, message: "You are not a member of this household" };
         }
 
-        const expenses = await ExpenseModel.findByHouseholdId(householdId);
-        return expenses;
+        // Lấy tất cả chi phí của household
+        let expenses = await ExpenseModel.findByHouseholdId(householdId);
+
+        // Filter nếu là personal
+        if (type === "personal") {
+            expenses = expenses.filter(e => e.user_id === userId);
+        }
+
+        // TRANSFORM DỮ LIỆU SANG CẤU TRÚC FRONTEND MONG ĐỢI
+        const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+        
+        // Giả lập phân loại fixed/variable/unplanned (vì DB chưa có trường này)
+        const summary = {
+            total: total,
+            fixed: total * 0.4,
+            variable: total * 0.4,
+            unplanned: total * 0.2,
+            sharedBudget: total * 1.2, // Giả lập budget
+            dailyAverage: total / 30
+        };
+
+        // Tính allocations/categories percent
+        const categoryMap = {};
+        expenses.forEach(e => {
+            if (!categoryMap[e.category_id]) {
+                categoryMap[e.category_id] = { name: e.category_name, amount: 0 };
+            }
+            categoryMap[e.category_id].amount += parseFloat(e.amount);
+        });
+
+        const allocations = Object.values(categoryMap).map(c => ({
+            category: c.name,
+            amount: c.amount,
+            percent: total > 0 ? Math.round((c.amount / total) * 100) : 0,
+            color: "bg-blue-500" // Mặc định
+        }));
+
+        // Tính member contributions
+        const memberMap = {};
+        members.forEach(m => {
+            memberMap[m.user_id] = { name: m.name, role: m.role, amount: 0 };
+        });
+        expenses.forEach(e => {
+            if (memberMap[e.user_id]) {
+                memberMap[e.user_id].amount += parseFloat(e.amount);
+            }
+        });
+
+        const memberContributions = Object.values(memberMap).map(m => ({
+            name: m.name,
+            role: m.role,
+            amount: m.amount,
+            percent: total > 0 ? Math.round((m.amount / total) * 100) : 0
+        }));
+
+        // Transactions format
+        const transactions = expenses.map(e => ({
+            id: e.id,
+            title: e.description || e.category_name,
+            subtitle: e.user_name,
+            category: e.category_name,
+            amount: parseFloat(e.amount),
+            date: new Date(e.expense_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            status: "Completed",
+            icon: "ShoppingCart" // Mặc định
+        }));
+
+        return {
+            summary,
+            allocations, // Cho PersonalView
+            categories: allocations, // Cho FamilyView
+            members: memberContributions,
+            transactions
+        };
     },
 
     /**

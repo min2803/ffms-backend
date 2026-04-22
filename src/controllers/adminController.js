@@ -177,13 +177,13 @@ const AdminController = {
 
     /**
      * PUT /api/admin/users/:id/role
-     * Body: { role }
+     * Body: { role_id }
      */
     async updateUserRole(req, res) {
         try {
             const adminUserId = req.user.userId;
             const targetUserId = parseInt(req.params.id);
-            const { role } = req.body;
+            const { role_id } = req.body;
 
             if (isNaN(targetUserId)) {
                 return res.status(400).json({
@@ -192,7 +192,7 @@ const AdminController = {
                 });
             }
 
-            const data = await AdminService.updateUserRole(adminUserId, targetUserId, role);
+            const data = await AdminService.updateUserRole(adminUserId, targetUserId, role_id);
 
             return res.status(200).json({
                 success: true,

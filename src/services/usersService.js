@@ -13,6 +13,10 @@ const UsersService = {
      * Lấy thông tin profile của user đang đăng nhập
      */
     async getProfile(userId) {
+        // Tự động kiểm tra và sửa lỗi dữ liệu (Household/Categories/Budget) nếu thiếu
+        const HouseholdService = require("./householdService");
+        await HouseholdService.ensureUserHasData(userId);
+
         const user = await UserModel.findById(userId);
         if (!user) {
             throw { status: 404, message: "User not found" };
@@ -87,15 +91,18 @@ const UsersService = {
 
     /**
      * Cập nhật role của user (Admin only)
+     * @param {number} id - User ID
+     * @param {number} role_id - Role ID (1 = admin, 2 = user)
      */
-    async updateUserRole(id, role) {
-        // Validate role
-        const allowedRoles = ["user", "admin"];
-        if (!role) {
-            throw { status: 400, message: "Role is required" };
+    async updateUserRole(id, role_id) {
+        // Validate role_id
+        const allowedRoleIds = [1, 2]; // 1 = admin, 2 = user
+        if (!role_id) {
+            throw { status: 400, message: "role_id is required" };
         }
-        if (!allowedRoles.includes(role)) {
-            throw { status: 400, message: "Invalid role. Allowed values: user, admin" };
+        const parsedRoleId = parseInt(role_id);
+        if (!allowedRoleIds.includes(parsedRoleId)) {
+            throw { status: 400, message: "Invalid role_id. Allowed values: 1 (admin), 2 (user)" };
         }
 
         // Kiểm tra user tồn tại
@@ -104,7 +111,7 @@ const UsersService = {
             throw { status: 404, message: "User not found" };
         }
 
-        const updatedUser = await UserModel.updateById(id, { role });
+        const updatedUser = await UserModel.updateById(id, { role_id: parsedRoleId });
 
         // Loại bỏ password trước khi trả về
         const { password_hash, ...userWithoutPassword } = updatedUser;

@@ -43,7 +43,7 @@ const IncomeController = {
     async getIncomes(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
 
             if (isNaN(householdId)) {
                 return res.status(400).json({

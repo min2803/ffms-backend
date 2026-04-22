@@ -1,7 +1,7 @@
 const os = require("os");
 const AdminModel = require("../models/adminModel");
 
-const VALID_ROLES = ["admin", "member"];
+const VALID_ROLE_IDS = [1, 2]; // 1 = admin, 2 = user
 const VALID_LOG_LEVELS = ["info", "warn", "error"];
 
 /**
@@ -140,11 +140,12 @@ const AdminService = {
 
     /**
      * PUT /api/admin/users/:id/role
-     * Body: { role }
+     * Body: { role_id }
      */
-    async updateUserRole(adminUserId, targetUserId, role) {
-        if (!role || !VALID_ROLES.includes(role)) {
-            throw { status: 400, message: "role must be 'admin' or 'member'" };
+    async updateUserRole(adminUserId, targetUserId, role_id) {
+        const parsedRoleId = parseInt(role_id);
+        if (!role_id || !VALID_ROLE_IDS.includes(parsedRoleId)) {
+            throw { status: 400, message: "role_id must be 1 (admin) or 2 (user)" };
         }
 
         if (adminUserId === targetUserId) {
@@ -156,8 +157,8 @@ const AdminService = {
             throw { status: 404, message: "User not found" };
         }
 
-        await AdminModel.updateUserRole(targetUserId, role);
-        return { id: targetUserId, role };
+        await AdminModel.updateUserRole(targetUserId, parsedRoleId);
+        return { id: targetUserId, role_id: parsedRoleId };
     },
 
     /**

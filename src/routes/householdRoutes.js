@@ -6,6 +6,9 @@ const { verifyToken } = require("../middlewares/authMiddleware");
 // Tạo household mới
 router.post("/", verifyToken, HouseholdController.createHousehold);
 
+// Lấy thông tin household của user hiện tại (Tự động bootstrap)
+router.get("/me", verifyToken, HouseholdController.getMyHousehold);
+
 // Lấy thông tin household theo ID
 router.get("/me/:id", verifyToken, HouseholdController.getHousehold);
 

@@ -2,23 +2,27 @@ const db = require("../config/db");
 
 const UserModel = {
     /**
-     * Tìm user theo email
+     * Tìm user theo email (JOIN roles để lấy role_name)
      */
     async findByEmail(email) {
         const [rows] = await db.execute(
-            "SELECT * FROM users WHERE email = ?",
+            `SELECT u.*, r.role_name 
+             FROM users u 
+             LEFT JOIN roles r ON u.role_id = r.id 
+             WHERE u.email = ?`,
             [email]
         );
         return rows.length > 0 ? rows[0] : null;
     },
 
     /**
-     * Tạo user mới
+     * Tạo user mới (mặc định role_id = 2 → user)
      */
-    async create({ name, email, password, role = "user" }) {
-        const [result] = await db.execute(
-            "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-            [name, email, password, role]
+    async create({ name, email, password }, conn = null) {
+        const executor = conn || db;
+        const [result] = await executor.execute(
+            "INSERT INTO users (name, email, password_hash, role_id) VALUES (?, ?, ?, 2)",
+            [name, email, password]
         );
 
         // Trả về user đã tạo (không kèm password)
@@ -26,28 +30,33 @@ const UserModel = {
             id: result.insertId,
             name,
             email,
-            role,
+            role_name: "user",
             created_at: new Date()
         };
     },
 
     /**
-     * Tìm user theo ID
+     * Tìm user theo ID (JOIN roles để lấy role_name)
      */
     async findById(id) {
         const [rows] = await db.execute(
-            "SELECT * FROM users WHERE id = ?",
+            `SELECT u.*, r.role_name 
+             FROM users u 
+             LEFT JOIN roles r ON u.role_id = r.id 
+             WHERE u.id = ?`,
             [id]
         );
         return rows.length > 0 ? rows[0] : null;
     },
 
     /**
-     * Lấy danh sách tất cả user (không kèm password)
+     * Lấy danh sách tất cả user (không kèm password, JOIN roles)
      */
     async findAll() {
         const [rows] = await db.execute(
-            "SELECT id, name, email, role, created_at, updated_at FROM users"
+            `SELECT u.id, u.name, u.email, u.role_id, r.role_name, u.created_at, u.updated_at 
+             FROM users u 
+             LEFT JOIN roles r ON u.role_id = r.id`
         );
         return rows;
     },

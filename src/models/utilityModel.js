@@ -41,8 +41,13 @@ const UtilityModel = {
 
         sql += " ORDER BY date DESC";
 
-        const [rows] = await db.execute(sql, params);
-        return rows;
+        try {
+            const [rows] = await db.execute(sql, params);
+            return rows || [];
+        } catch (error) {
+            console.error("UtilityModel.findAll error:", error);
+            return []; // Trả về mảng rỗng thay vì crash nếu có lỗi DB
+        }
     },
 
     /**

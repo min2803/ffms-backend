@@ -8,13 +8,18 @@ const DashboardController = {
     async getSummary(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const { month, year } = req.query;
 
-            if (isNaN(householdId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Valid householdId query parameter is required"
+            if (!householdId || isNaN(parseInt(householdId))) {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        totalIncome: 0,
+                        totalExpense: 0,
+                        balance: 0,
+                        message: "Chưa có dữ liệu hộ gia đình. Vui lòng thiết lập hộ gia đình trước."
+                    }
                 });
             }
 
@@ -49,7 +54,7 @@ const DashboardController = {
     async getCompare(req, res) {
         try {
             const userId = req.user.userId;
-            const householdId = parseInt(req.query.householdId);
+            const householdId = req.householdId;
             const { fromDate, toDate } = req.query;
 
             if (isNaN(householdId)) {

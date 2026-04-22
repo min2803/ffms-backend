@@ -119,8 +119,8 @@ const UsersController = {
     async updateUserRole(req, res) {
         try {
             const { id } = req.params;
-            const { role } = req.body;
-            const updatedUser = await UsersService.updateUserRole(id, role);
+            const { role_id } = req.body;
+            const updatedUser = await UsersService.updateUserRole(id, role_id);
 
             return res.status(200).json({
                 success: true,

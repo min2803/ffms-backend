@@ -11,7 +11,7 @@ const SALT_ROUNDS = 10;
  */
 const generateAccessToken = (user) => {
     return jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
+        { userId: user.id, email: user.email, role: user.role_name, householdId: user.household_id },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || "15m" }
     );
@@ -22,7 +22,7 @@ const generateAccessToken = (user) => {
  */
 const generateRefreshToken = (user) => {
     return jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
+        { userId: user.id, email: user.email, role: user.role_name, householdId: user.household_id },
         process.env.JWT_REFRESH_SECRET,
         { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" }
     );
@@ -58,14 +58,39 @@ const AuthService = {
         // Mã hóa mật khẩu
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // Tạo user mới trong cơ sở dữ liệu
-        const user = await UserModel.create({
-            name,
-            email,
-            password: hashedPassword
-        });
+        const db = require("../config/db");
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
 
-        return user;
+        try {
+            // Tạo user mới trong cơ sở dữ liệu
+            const user = await UserModel.create({
+                name,
+                email,
+                password: hashedPassword
+            }, connection);
+
+            // Tạo Personal Household cho user
+            const HouseholdModel = require("../models/householdModel");
+            const household = await HouseholdModel.create({
+                name: `${name}'s Personal Finance`,
+                description: "Default personal household",
+                ownerId: user.id
+            }, connection);
+            await HouseholdModel.addMember(household.id, user.id, "owner", connection);
+
+            // Cập nhật household_id cho user
+            await connection.execute("UPDATE users SET household_id = ? WHERE id = ?", [household.id, user.id]);
+
+            await connection.commit();
+            user.household_id = household.id;
+            return user;
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
     },
 
     /**
@@ -89,6 +114,13 @@ const AuthService = {
             throw { status: 401, message: "Invalid email or password" };
         }
 
+        // Tự động Bootstrap dữ liệu nếu user chưa có household (fix lỗi giao diện trống)
+        const HouseholdService = require("./householdService");
+        const household = await HouseholdService.ensureUserHasData(user.id);
+        
+        // Cập nhật lại thông tin household mới nhất vào user object trước khi tạo token
+        user.household_id = household.id;
+
         // Tạo access token và refresh token
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
@@ -100,6 +132,9 @@ const AuthService = {
 
         // Trả về thông tin user (không kèm password) và tokens
         const { password_hash, ...userWithoutPassword } = user;
+
+        // Định tuyến household mặc định từ cột db
+        userWithoutPassword.currentHouseholdId = user.household_id;
 
         return {
             user: userWithoutPassword,

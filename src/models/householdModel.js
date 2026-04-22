@@ -4,8 +4,9 @@ const HouseholdModel = {
     /**
      * Tạo household mới
      */
-    async create({ name, description, ownerId }) {
-        const [result] = await db.execute(
+    async create({ name, description, ownerId }, conn = null) {
+        const executor = conn || db;
+        const [result] = await executor.execute(
             "INSERT INTO households (name, description, owner_id) VALUES (?, ?, ?)",
             [name, description || null, ownerId]
         );
@@ -57,10 +58,25 @@ const HouseholdModel = {
     },
 
     /**
+     * Lấy tất cả household mà user là thành viên
+     */
+    async findHouseholdsByUserId(userId) {
+        const [rows] = await db.execute(
+            `SELECT h.*, hm.role, hm.joined_at 
+             FROM household_members hm
+             JOIN households h ON hm.household_id = h.id
+             WHERE hm.user_id = ? AND (h.is_deleted = false OR h.is_deleted IS NULL)`,
+            [userId]
+        );
+        return rows;
+    },
+
+    /**
      * Thêm thành viên vào household
      */
-    async addMember(householdId, userId, role = "member") {
-        const [result] = await db.execute(
+    async addMember(householdId, userId, role = "member", conn = null) {
+        const executor = conn || db;
+        const [result] = await executor.execute(
             "INSERT INTO household_members (household_id, user_id, role) VALUES (?, ?, ?)",
             [householdId, userId, role]
         );

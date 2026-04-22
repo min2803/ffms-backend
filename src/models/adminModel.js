@@ -35,16 +35,18 @@ const AdminModel = {
      * Tìm kiếm users với pagination
      */
     async searchUsers(search, limit, offset) {
-        let query = "SELECT id, name, email, role, created_at, updated_at FROM users";
+        let query = `SELECT u.id, u.name, u.email, u.role_id, r.role_name, u.created_at, u.updated_at 
+                     FROM users u 
+                     LEFT JOIN roles r ON u.role_id = r.id`;
         const params = [];
 
         if (search) {
-            query += " WHERE name LIKE ? OR email LIKE ?";
+            query += " WHERE u.name LIKE ? OR u.email LIKE ?";
             const searchPattern = `%${search}%`;
             params.push(searchPattern, searchPattern);
         }
 
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+        query += " ORDER BY u.created_at DESC LIMIT ? OFFSET ?";
         params.push(limit, offset);
 
         const [rows] = await db.execute(query, params);
@@ -88,7 +90,10 @@ const AdminModel = {
      */
     async findUserById(id) {
         const [rows] = await db.execute(
-            "SELECT id, name, email, role, created_at, updated_at FROM users WHERE id = ?",
+            `SELECT u.id, u.name, u.email, u.role_id, r.role_name, u.created_at, u.updated_at 
+             FROM users u 
+             LEFT JOIN roles r ON u.role_id = r.id 
+             WHERE u.id = ?`,
             [id]
         );
         return rows.length > 0 ? rows[0] : null;
@@ -105,10 +110,10 @@ const AdminModel = {
     /**
      * Cập nhật role của user
      */
-    async updateUserRole(id, role) {
+    async updateUserRole(id, role_id) {
         const [result] = await db.execute(
-            "UPDATE users SET role = ? WHERE id = ?",
-            [role, id]
+            "UPDATE users SET role_id = ? WHERE id = ?",
+            [role_id, id]
         );
         return result.affectedRows > 0;
     },
