@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Brand Colors ── */
+  --color-primary: #00629d;
+  --color-primary-2: #00a3ff;
+  --color-primary-dark: #0088d4;
+  --color-secondary: #6cf8bb;
+
+  /* ── Background Colors ── */
+  --color-bg-page: #f9f9ff;
+  --color-bg-surface: #ffffff;
+  --color-bg-subtle: #f0f3ff;
+  --color-bg-footer: #f8fafc;
+  --color-bg-sidebar: #f1f5f9;
+  --color-bg-insights: #f0f4ff;
+  --color-bg-badge: #dee8ff;
+  --color-bg-utility-recommendation: #deebff;
+  --color-bg-utility-chart-top: #aad4ee;
+  --color-bg-utility-chart-bottom: #0f6498;
+  --color-bg-utility-icon-primary: #e8f3ff;
+  --color-bg-utility-icon-accent: #f8f0df;
+  /* Soft violet panel (settings security icon, date badges in Figma) */
+  --color-bg-tint-soft: #e7eeff;
+  --color-bg-progress-track: #d8e3fb;
+
+  /* ── Text Colors ── */
+  --color-text-primary: #111c2d;
+  --color-text-secondary: #3f4852;
+  --color-text-muted: #64748b;
+  --color-text-soft: #94a3b8;
+  --color-text-inverse: #ffffff;
+
+  /* ── State Colors ── */
+  --color-state-success: #006c49;
+  --color-state-error: #ba1a1a;
+  --color-state-warning-bg: #fff1f2;
+  --color-state-warning-border: #fecdd3;
+  --color-state-warning-text: #be123c;
+
+  /* ── Chart Colors ── */
+  --color-chart-line: #0284c7;
+  --color-chart-grid: #f1f5f9;
+  --color-chart-area-start: rgba(2, 132, 199, 0.15);
+  --color-chart-area-end: rgba(2, 132, 199, 0.01);
+
+  /* ── Border Colors ── */
+  --color-border-default: #e2e8f0;
+  --color-border-light: rgba(203, 213, 225, 0.2);
+
+  /* ── Input Colors ── */
+  --color-input-placeholder: #bec7d4;
+  --color-input-icon: #6f7883;
+
+  /* ── Role Badge Colors ── */
+  --color-role-admin-bg: rgba(0, 98, 157, 0.12);
+  --color-role-admin-text: #00629d;
+  --color-role-editor-bg: rgba(108, 248, 187, 0.3);
+  --color-role-editor-text: #00714d;
+  --color-role-viewer-bg: #dee8ff;
+  --color-role-viewer-text: #3f4852;
+  --color-role-member-bg: #ffddb8;
+  --color-role-member-text: #855300;
+
+  /* ── Font Families ── */
+  --font-sans: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* ── Typography Scale (Chuẩn hóa cỡ chữ hệ thống) ── */
+  --font-size-xs: 0.75rem;     /* 12px */
+  --font-size-sm: 0.875rem;    /* 14px */
+  --font-size-base: 1rem;      /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+  --font-size-5xl: 3rem;       /* 48px */
+  --font-size-6xl: 3.75rem;    /* 60px */
+
+  /* ── Shadows ── */
+  --shadow-button-sm:
+    0 10px 15px -3px rgb(0 98 157 / 0.2),
+    0 4px 6px -4px rgb(0 98 157 / 0.2);
+  --shadow-button-lg:
+    0 20px 25px -5px rgb(0 98 157 / 0.25),
+    0 8px 10px -6px rgb(0 98 157 / 0.25);
+  --shadow-card: 0 25px 50px -12px rgb(17 28 45 / 0.05);
+  --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+
+  /* ── Blur ── */
+  --blur-header: 6px;
+  --blur-glow-sm: 20px;
+  --blur-glow-md: 32px;
+  --blur-glow-lg: 50px;
+  --blur-glow-xl: 60px;
+
+  /* ── Responsive Breakpoints (Thiết lập kích thước màn hình theo yêu cầu) ── */
+  --breakpoint-mobile: 480px;    /* Mobile nhỏ xs */
+  --breakpoint-tablet: 768px;    /* md: Máy tính bảng */
+  --breakpoint-desktop: 1024px;  /* lg: Desktop thường */
+  --breakpoint-widescreen: 1440px; /* xl: Màn hình lớn */
+
+  /* ── Border Radius ── */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-pill: 9999px;
+}
+
+/* ── Globals & Utilities ── */
+@layer base {
+  /* Tối ưu thanh trượt (Scrollbar) cho tất cả màn hình */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: var(--radius-pill);
+  }
+}
