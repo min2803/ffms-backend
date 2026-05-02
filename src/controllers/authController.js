@@ -1,123 +1,67 @@
 const AuthService = require("../services/authService");
+const { handleRequest } = require("../utils/controllerHandler");
 
 const AuthController = {
-    /**
-     * Đăng ký tài khoản
-     */
-    async register(req, res) {
-        try {
-            const { name, email, password } = req.body;
-            const user = await AuthService.register({ name, email, password });
+    register: handleRequest(async (req, res) => {
+        const { name, email, password } = req.body;
+        const user = await AuthService.register({ name, email, password });
 
-            return res.status(201).json({
-                success: true,
-                message: "User registered successfully",
-                data: user
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Register error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
+        return res.status(201).json({
+            success: true,
+            message: "User registered successfully",
+            data: user
+        });
+    }, "Register"),
+
+    login: handleRequest(async (req, res) => {
+        const { email, password } = req.body;
+        const result = await AuthService.login({ email, password });
+
+        return res.status(200).json({
+            success: true,
+            message: "Login successful",
+            data: result
+        });
+    }, "Login"),
+
+    logout: handleRequest(async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(400).json({ success: false, message: "Authorization header missing or malformed" });
         }
-    },
+        const accessToken = authHeader.split(" ")[1];
+        const { refreshToken } = req.body;
 
-    /**
-     * Đăng nhập — trả về accessToken và refreshToken
-     */
-    async login(req, res) {
-        try {
-            const { email, password } = req.body;
-            const result = await AuthService.login({ email, password });
+        await AuthService.logout(accessToken, refreshToken);
 
-            return res.status(200).json({
-                success: true,
-                message: "Login successful",
-                data: result
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Login error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
+        return res.status(200).json({
+            success: true,
+            message: "Logout successful"
+        });
+    }, "Logout"),
 
-    /**
-     * Đăng xuất — vô hiệu hóa access token và refresh token
-     */
-    async logout(req, res) {
-        try {
-            // Lấy access token từ header Authorization
-            const authHeader = req.headers.authorization;
-            const accessToken = authHeader.split(" ")[1];
+    forgotPassword: handleRequest(async (req, res) => {
+        const { email } = req.body;
+        const result = await AuthService.forgotPassword(email);
+        return res.status(200).json({ success: true, ...result });
+    }, "Forgot password"),
 
-            // Lấy refresh token từ body (tùy chọn)
-            const { refreshToken } = req.body;
+    resetPassword: handleRequest(async (req, res) => {
+        const { token, newPassword } = req.body;
+        const result = await AuthService.resetPassword(token, newPassword);
+        return res.status(200).json({ success: true, ...result });
+    }, "Reset password"),
 
-            // Thêm access token vào blacklist và xóa refresh token
-            await AuthService.logout(accessToken, refreshToken);
+    refresh: handleRequest(async (req, res) => {
+        const { refreshToken } = req.body;
+        const tokens = await AuthService.refresh(refreshToken);
 
-            return res.status(200).json({
-                success: true,
-                message: "Logout successful"
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Logout error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
-
-    /**
-     * Refresh — tạo access token mới từ refresh token
-     */
-    async refresh(req, res) {
-        try {
-            const { refreshToken } = req.body;
-            const tokens = await AuthService.refresh(refreshToken);
-
-            return res.status(200).json({
-                success: true,
-                message: "Token refreshed successfully",
-                data: tokens
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Refresh token error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    }
+        return res.status(200).json({
+            success: true,
+            message: "Token refreshed successfully",
+            data: tokens
+        });
+    }, "Refresh token")
 };
 
 module.exports = AuthController;

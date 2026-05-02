@@ -227,25 +227,54 @@ const HouseholdService = {
      * Thay đổi role thành viên — chỉ owner mới được thay đổi
      */
     async changeMemberRole(requesterId, membershipId, newRole) {
-        // ... (existing code logic kept)
-        // [Để tiết kiệm context, tôi giả định logic cũ vẫn giữ nguyên, chỉ thêm hàm mới bên dưới]
+        const VALID_ROLES = ["owner", "admin", "member"];
+        if (!newRole || !VALID_ROLES.includes(newRole)) {
+            throw { status: 400, message: `newRole must be one of: ${VALID_ROLES.join(", ")}` };
+        }
+
+        // Tìm membership để biết household
+        const membership = await HouseholdModel.findMemberById(membershipId);
+        if (!membership) {
+            throw { status: 404, message: "Membership not found" };
+        }
+
+        // Chỉ owner mới được thay đổi role
+        const requesterRole = await HouseholdModel.getMemberRole(membership.household_id, requesterId);
+        if (requesterRole !== "owner") {
+            throw { status: 403, message: "Only the owner can change member roles" };
+        }
+
+        // Không cho phép thay đổi role của chính owner
+        if (membership.user_id === requesterId && newRole !== "owner") {
+            throw { status: 400, message: "Owner cannot demote themselves" };
+        }
+
+        const updatedMembership = await HouseholdModel.updateMemberRole(membershipId, newRole);
         return updatedMembership;
     },
 
     /**
-     * Tự động kiểm tra và khởi tạo dữ liệu mặc định cho User (Bootstrap)
-     * Tránh tình trạng User đăng nhập vào mà không thấy dữ liệu (trống trơn)
+     * Tự động khởi tạo household + categories + budget trống cho user mới.
+     * KHÔNG tạo dữ liệu mẫu (income/expense) — user tự nhập hoặc bấm "Tạo dữ liệu mẫu".
      */
-    async ensureUserHasData(userId) {
+    async ensureUserHasHousehold(userId) {
         const db = require("../config/db");
-        
-        // 1. Kiểm tra xem User đã thuộc về bất kỳ Household nào chưa
+
         const households = await HouseholdModel.findHouseholdsByUserId(userId);
         if (households.length > 0) {
-            return households[0]; // Đã có dữ liệu, trả về household đầu tiên
+            // Get user's active household_id
+            const user = await UserModel.findById(userId);
+            const activeHouseholdId = user?.household_id;
+
+            if (activeHouseholdId) {
+                const activeHousehold = households.find(h => h.id === activeHouseholdId);
+                if (activeHousehold) return activeHousehold;
+            }
+
+            const ownedHousehold = households.find(h => h.role === "owner");
+            return ownedHousehold || households[0];
         }
 
-        // 2. Nếu chưa có, bắt đầu quá trình nạp dữ liệu mẫu (Bootstrap)
         const connection = await db.getConnection();
         await connection.beginTransaction();
 
@@ -253,20 +282,16 @@ const HouseholdService = {
             const user = await UserModel.findById(userId);
             if (!user) throw { status: 404, message: "User not found" };
 
-            // A. Tạo Household mặc định
             const household = await HouseholdModel.create({
                 name: `${user.name}'s Personal Finance`,
                 description: "Đây là không gian quản lý tài chính cá nhân mặc định của bạn.",
                 ownerId: userId
             }, connection);
 
-            // B. Gán User làm Owner
             await HouseholdModel.addMember(household.id, userId, "owner", connection);
 
-            // C. Cập nhật household_id mặc định cho User
             await connection.execute("UPDATE users SET household_id = ? WHERE id = ?", [household.id, userId]);
 
-            // D. Tạo danh mục (Categories) mặc định
             const defaultCategories = [
                 { name: "Ăn uống", type: "expense" },
                 { name: "Di chuyển", type: "expense" },
@@ -289,7 +314,6 @@ const HouseholdService = {
                 }
             }
 
-            // E. Tạo Ngân sách (Budget) mẫu cho tháng hiện tại
             const now = new Date();
             const month = now.getMonth() + 1;
             const year = now.getFullYear();
@@ -297,50 +321,129 @@ const HouseholdService = {
             for (const catId of categoryIds) {
                 await connection.execute(
                     "INSERT INTO budgets (household_id, category_id, month, year, amount) VALUES (?, ?, ?, ?, ?)",
-                    [household.id, catId, month, year, 5000000] // 5 triệu cho mỗi mục
+                    [household.id, catId, month, year, 0]
                 );
             }
 
-            // F. Tạo dữ liệu mẫu (Incomes / Expenses) cho 3 tháng gần nhất
+            await connection.commit();
+            return household;
+        } catch (error) {
+            await connection.rollback();
+            console.error("Bootstrap error for user", userId, ":", error);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    },
+
+    /**
+     * Seed dữ liệu mẫu cho household đã tồn tại (dành cho user cũ)
+     * Tạo incomes, expenses, và budgets mẫu nếu chưa có data
+     */
+    async seedSampleData(userId, householdId) {
+        const db = require("../config/db");
+
+        // Kiểm tra household tồn tại và user là member
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        const member = await HouseholdModel.findMember(householdId, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            // Lấy/tạo categories
+            const [existingCats] = await connection.execute(
+                "SELECT id, type FROM categories WHERE household_id = ? AND type = 'expense' LIMIT 10",
+                [householdId]
+            );
+
+            let categoryIds = existingCats.map(c => c.id);
+
+            // Nếu chưa có category, tạo mới
+            if (categoryIds.length === 0) {
+                const defaultCategories = [
+                    { name: "Ăn uống", type: "expense" },
+                    { name: "Di chuyển", type: "expense" },
+                    { name: "Nhà ở", type: "expense" },
+                    { name: "Mua sắm", type: "expense" },
+                    { name: "Giải trí", type: "expense" },
+                    { name: "Sức khỏe", type: "expense" },
+                    { name: "Tiền lương", type: "income" },
+                    { name: "Thưởng", type: "income" }
+                ];
+
+                for (const cat of defaultCategories) {
+                    const [res] = await connection.execute(
+                        "INSERT INTO categories (household_id, name, type) VALUES (?, ?, ?)",
+                        [householdId, cat.name, cat.type]
+                    );
+                    if (cat.type === "expense") categoryIds.push(res.insertId);
+                }
+            }
+
+            // Tạo budget mẫu nếu chưa có
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const year = now.getFullYear();
+
+            const [existingBudgets] = await connection.execute(
+                "SELECT id FROM budgets WHERE household_id = ? AND month = ? AND year = ? LIMIT 1",
+                [householdId, month, year]
+            );
+
+            if (existingBudgets.length === 0) {
+                for (const catId of categoryIds) {
+                    await connection.execute(
+                        "INSERT INTO budgets (household_id, category_id, month, year, amount) VALUES (?, ?, ?, ?, ?)",
+                        [householdId, catId, month, year, 5000000]
+                    );
+                }
+            }
+
+            // Tạo income/expense mẫu cho 90 ngày gần nhất
+            let incomeCount = 0;
+            let expenseCount = 0;
+
             for (let i = 0; i < 90; i++) {
                 const date = new Date();
                 date.setDate(now.getDate() - i);
                 const dateString = date.toISOString().split('T')[0];
 
-                // Incomes ngày 1 và 15
                 if (date.getDate() === 1 || date.getDate() === 15) {
                     await connection.execute(
                         "INSERT INTO incomes (household_id, user_id, amount, source, income_date) VALUES (?, ?, ?, ?, ?)",
-                        [household.id, userId, 15000000, "Lương tháng mẫu", dateString]
+                        [householdId, userId, 15000000, "Lương tháng mẫu", dateString]
                     );
+                    incomeCount++;
                 }
 
-                // Expenses ngẫu nhiên
-                if (Math.random() > 0.5) {
+                if (Math.random() > 0.5 && categoryIds.length > 0) {
                     const catId = categoryIds[Math.floor(Math.random() * categoryIds.length)];
                     await connection.execute(
                         "INSERT INTO expenses (household_id, user_id, category_id, amount, description, expense_date) VALUES (?, ?, ?, ?, ?, ?)",
-                        [household.id, userId, catId, Math.random() * 500000 + 50000, "Chi tiêu tự động khởi tạo", dateString]
+                        [householdId, userId, catId, Math.random() * 500000 + 50000, "Chi tiêu mẫu", dateString]
                     );
-                }
-
-                // Utility readings ngày 28
-                if (date.getDate() === 28) {
-                    await connection.execute(
-                        "INSERT INTO utility_readings (user_id, type, value, cost, date) VALUES (?, ?, ?, ?, ?)",
-                        [userId, 'electricity', Math.random() * 300 + 100, Math.random() * 500000 + 200000, dateString]
-                    );
+                    expenseCount++;
                 }
             }
 
             await connection.commit();
             return {
-                ...household,
-                is_bootstrapped: true
+                householdId,
+                incomeCount,
+                expenseCount,
+                message: `Đã tạo ${incomeCount} khoản thu và ${expenseCount} khoản chi mẫu`
             };
         } catch (error) {
             await connection.rollback();
-            console.error("Bootstrap error for user", userId, ":", error);
+            console.error("Seed sample data error:", error);
             throw error;
         } finally {
             connection.release();
@@ -349,3 +452,4 @@ const HouseholdService = {
 };
 
 module.exports = HouseholdService;
+

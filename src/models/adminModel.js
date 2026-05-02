@@ -100,11 +100,25 @@ const AdminModel = {
     },
 
     /**
-     * Xóa user (hard delete — cascade sẽ xóa dữ liệu liên quan)
+     * Xóa user (hard delete) — cleanup FK references trong transaction
      */
     async deleteUser(id) {
-        const [result] = await db.execute("DELETE FROM users WHERE id = ?", [id]);
-        return result.affectedRows > 0;
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
+        try {
+            await connection.execute("DELETE FROM notifications WHERE user_id = ?", [id]);
+            await connection.execute("DELETE FROM utility_readings WHERE user_id = ?", [id]);
+            await connection.execute("DELETE FROM refresh_tokens WHERE user_id = ?", [id]);
+            await connection.execute("DELETE FROM household_members WHERE user_id = ?", [id]);
+            const [result] = await connection.execute("DELETE FROM users WHERE id = ?", [id]);
+            await connection.commit();
+            return result.affectedRows > 0;
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
     },
 
     /**
@@ -119,16 +133,27 @@ const AdminModel = {
     },
 
     /**
-     * Xóa household kèm dữ liệu liên quan (cascade)
+     * Xóa household kèm dữ liệu liên quan (cascade) trong transaction
      */
     async deleteHousehold(id) {
-        // Xóa theo thứ tự: expenses → incomes → budgets → members → household
-        await db.execute("DELETE FROM expenses WHERE household_id = ?", [id]);
-        await db.execute("DELETE FROM incomes WHERE household_id = ?", [id]);
-        await db.execute("DELETE FROM budgets WHERE household_id = ?", [id]);
-        await db.execute("DELETE FROM household_members WHERE household_id = ?", [id]);
-        const [result] = await db.execute("DELETE FROM households WHERE id = ?", [id]);
-        return result.affectedRows > 0;
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
+        try {
+            await connection.execute("DELETE FROM expenses WHERE household_id = ?", [id]);
+            await connection.execute("DELETE FROM incomes WHERE household_id = ?", [id]);
+            await connection.execute("DELETE FROM budgets WHERE household_id = ?", [id]);
+            await connection.execute("DELETE FROM categories WHERE household_id = ?", [id]);
+            await connection.execute("UPDATE users SET household_id = NULL WHERE household_id = ?", [id]);
+            await connection.execute("DELETE FROM household_members WHERE household_id = ?", [id]);
+            const [result] = await connection.execute("DELETE FROM households WHERE id = ?", [id]);
+            await connection.commit();
+            return result.affectedRows > 0;
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
     },
 
     /**

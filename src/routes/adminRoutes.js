@@ -6,6 +6,11 @@ const { verifyToken, authorizeRole } = require("../middlewares/authMiddleware");
 // Tất cả routes yêu cầu admin role
 router.use(verifyToken, authorizeRole("admin"));
 
+// Aggregate endpoints cho frontend admin pages
+router.get("/dashboard", AdminController.getDashboard);
+router.get("/health", AdminController.getSystemHealth);
+router.get("/household-management", AdminController.getHouseholdManagement);
+
 // Tổng quan hệ thống
 router.get("/summary", AdminController.getSummary);
 

@@ -38,6 +38,50 @@ const BudgetModel = {
     },
 
     /**
+     * Lấy budgets tháng hiện tại (server time)
+     */
+    async findCurrentMonth(householdId) {
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        return this.findByHouseholdAndMonth(householdId, month, year);
+    },
+
+    /**
+     * Lấy lịch sử budgets — nhóm theo tháng/năm, sort giảm dần
+     */
+    async findHistory(householdId, limit = 12, offset = 0) {
+        const [rows] = await db.execute(
+            `SELECT b.month, b.year,
+                    COUNT(b.id) AS category_count,
+                    SUM(b.amount) AS total_amount,
+                    MIN(b.created_at) AS created_at
+             FROM budgets b
+             WHERE b.household_id = ?
+             GROUP BY b.month, b.year
+             ORDER BY b.year DESC, b.month DESC
+             LIMIT ? OFFSET ?`,
+            [householdId, limit, offset]
+        );
+        return rows;
+    },
+
+    /**
+     * Lấy chi tiết budgets cho 1 tháng cụ thể (dùng cho history detail)
+     */
+    async findDetailByYearMonth(householdId, year, month) {
+        const [rows] = await db.execute(
+            `SELECT b.*, c.name AS category_name
+             FROM budgets b
+             JOIN categories c ON b.category_id = c.id
+             WHERE b.household_id = ? AND b.year = ? AND b.month = ?
+             ORDER BY c.name ASC`,
+            [householdId, year, month]
+        );
+        return rows;
+    },
+
+    /**
      * Kiểm tra budget đã tồn tại chưa (tránh trùng lặp)
      */
     async findExisting(householdId, categoryId, month, year) {
@@ -94,6 +138,17 @@ const BudgetModel = {
             [id]
         );
         return result.affectedRows > 0;
+    },
+
+    /**
+     * Lấy tất cả household_id có budget ở tháng cụ thể
+     */
+    async getHouseholdsWithBudgetForMonth(month, year) {
+        const [rows] = await db.execute(
+            `SELECT DISTINCT household_id FROM budgets WHERE month = ? AND year = ?`,
+            [month, year]
+        );
+        return rows.map(r => r.household_id);
     }
 };
 

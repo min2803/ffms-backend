@@ -1,174 +1,90 @@
 const UsersService = require("../services/usersService");
+const { handleRequest } = require("../utils/controllerHandler");
 
 const UsersController = {
-    /**
-     * Lấy danh sách tất cả user (Admin only)
-     */
-    async getAllUsers(req, res) {
-        try {
-            const users = await UsersService.getAllUsers();
+    getAllUsers: handleRequest(async (req, res) => {
+        const users = await UsersService.getAllUsers();
 
-            return res.status(200).json({
-                success: true,
-                message: "Users retrieved successfully",
-                data: users
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Get all users error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
+        return res.status(200).json({
+            success: true,
+            message: "Users retrieved successfully",
+            data: users
+        });
+    }, "Get all users"),
 
-    /**
-     * Lấy thông tin profile của user đang đăng nhập
-     */
-    async getProfile(req, res) {
-        try {
-            const userId = req.user.userId;
-            const user = await UsersService.getProfile(userId);
+    getProfile: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const user = await UsersService.getProfile(userId);
 
-            return res.status(200).json({
-                success: true,
-                message: "Profile retrieved successfully",
-                data: user
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Get profile error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
+        return res.status(200).json({
+            success: true,
+            message: "Profile retrieved successfully",
+            data: user
+        });
+    }, "Get profile"),
 
-    /**
-     * Cập nhật thông tin profile của user đang đăng nhập (name, email)
-     */
-    async updateProfile(req, res) {
-        try {
-            const userId = req.user.userId;
-            const { name, email } = req.body;
-            const updatedUser = await UsersService.updateProfile(userId, { name, email });
+    updateProfile: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const { name, email, full_name, phone_number, date_of_birth } = req.body;
+        const updatedUser = await UsersService.updateProfile(userId, { name, email, full_name, phone_number, date_of_birth });
 
-            return res.status(200).json({
-                success: true,
-                message: "Profile updated successfully",
-                data: updatedUser
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Update profile error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
+        return res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            data: updatedUser
+        });
+    }, "Update profile"),
 
-    /**
-     * Lấy thông tin user theo ID
-     */
-    async getUserById(req, res) {
-        try {
-            const { id } = req.params;
-            const user = await UsersService.getUserById(id);
+    searchUsers: handleRequest(async (req, res) => {
+        const { q } = req.query;
+        const users = await UsersService.searchUsers(q);
+        return res.status(200).json({ success: true, data: users });
+    }, "Search users"),
 
-            return res.status(200).json({
-                success: true,
-                message: "User retrieved successfully",
-                data: user
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Get user by id error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
+    getUserById: handleRequest(async (req, res) => {
+        const { id } = req.params;
+        const user = await UsersService.getUserById(id);
 
-    /**
-     * Cập nhật role của user (Admin only)
-     */
-    async updateUserRole(req, res) {
-        try {
-            const { id } = req.params;
-            const { role_id } = req.body;
-            const updatedUser = await UsersService.updateUserRole(id, role_id);
+        return res.status(200).json({
+            success: true,
+            message: "User retrieved successfully",
+            data: user
+        });
+    }, "Get user by id"),
 
-            return res.status(200).json({
-                success: true,
-                message: "User role updated successfully",
-                data: updatedUser
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Update user role error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    },
+    updateUserRole: handleRequest(async (req, res) => {
+        const { id } = req.params;
+        const { role_id } = req.body;
+        const updatedUser = await UsersService.updateUserRole(id, role_id);
 
-    /**
-     * Xóa user (Admin only)
-     */
-    async deleteUser(req, res) {
-        try {
-            const { id } = req.params;
-            const currentUserId = req.user.userId;
-            await UsersService.deleteUser(id, currentUserId);
+        return res.status(200).json({
+            success: true,
+            message: "User role updated successfully",
+            data: updatedUser
+        });
+    }, "Update user role"),
 
-            return res.status(200).json({
-                success: true,
-                message: "User deleted successfully"
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Delete user error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    }
+    changePassword: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const { currentPassword, newPassword } = req.body;
+        await UsersService.changePassword(userId, { currentPassword, newPassword });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully"
+        });
+    }, "Change password"),
+
+    deleteUser: handleRequest(async (req, res) => {
+        const { id } = req.params;
+        const currentUserId = req.user.userId;
+        await UsersService.deleteUser(id, currentUserId);
+
+        return res.status(200).json({
+            success: true,
+            message: "User deleted successfully"
+        });
+    }, "Delete user")
 };
 
 module.exports = UsersController;

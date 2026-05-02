@@ -29,12 +29,14 @@ const ExpenseModel = {
     async findByHouseholdId(householdId) {
         const [rows] = await db.execute(
             `SELECT e.*, u.name AS user_name, u.email AS user_email,
-                    c.name AS category_name
+                    c.name AS category_name,
+                    hm.role AS user_role
              FROM expenses e
              JOIN users u ON e.user_id = u.id
              JOIN categories c ON e.category_id = c.id
+             LEFT JOIN household_members hm ON hm.household_id = e.household_id AND hm.user_id = e.user_id
              WHERE e.household_id = ?
-             ORDER BY e.expense_date DESC`,
+             ORDER BY e.expense_date DESC, e.created_at DESC`,
             [householdId]
         );
         return rows;

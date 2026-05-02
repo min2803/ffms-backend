@@ -25,9 +25,9 @@ const UtilityModel = {
      * Lấy danh sách readings với optional filters (type, month)
      * month format: 'YYYY-MM'
      */
-    async findAll({ type, month }) {
-        let sql = "SELECT * FROM utility_readings WHERE 1=1";
-        const params = [];
+    async findAll({ userId, type, month }) {
+        let sql = "SELECT * FROM utility_readings WHERE user_id = ?";
+        const params = [userId];
 
         if (type) {
             sql += " AND type = ?";
@@ -54,16 +54,16 @@ const UtilityModel = {
      * Lấy summary: tổng usage và tổng cost theo tháng, group by type
      * month format: 'YYYY-MM'
      */
-    async getSummary(month) {
+    async getSummary(userId, month) {
         const [rows] = await db.execute(
-            `SELECT 
+            `SELECT
                 type,
                 SUM(value) AS totalUsage,
                 SUM(cost) AS totalCost
              FROM utility_readings
-             WHERE DATE_FORMAT(date, '%Y-%m') = ?
+             WHERE user_id = ? AND DATE_FORMAT(date, '%Y-%m') = ?
              GROUP BY type`,
-            [month]
+            [userId, month]
         );
         return rows;
     }

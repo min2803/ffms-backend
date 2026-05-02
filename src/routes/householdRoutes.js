@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const HouseholdController = require("../controllers/householdController");
+const InvitationController = require("../controllers/invitationController");
 const { verifyToken } = require("../middlewares/authMiddleware");
 
 // Tạo household mới
@@ -21,6 +22,9 @@ router.delete("/:id", verifyToken, HouseholdController.deleteHousehold);
 // Thêm thành viên vào household — chỉ owner/admin trong household
 router.post("/:id/members", verifyToken, HouseholdController.addMember);
 
+// Gửi invitations cho nhiều user — chỉ owner/admin
+router.post("/:id/invitations", verifyToken, InvitationController.createInvitations);
+
 // Xóa thành viên khỏi household — chỉ owner/admin trong household
 router.delete("/:id/members/:userId", verifyToken, HouseholdController.removeMember);
 
@@ -29,5 +33,8 @@ router.post("/invite", verifyToken, HouseholdController.inviteMember);
 
 // Thay đổi role thành viên trong household — chỉ owner
 router.patch("/members/:id/role", verifyToken, HouseholdController.changeMemberRole);
+
+// Re-seed sample data cho user hiện tại (nếu household đã tồn tại nhưng chưa có data mẫu)
+router.post("/seed-data", verifyToken, HouseholdController.seedData);
 
 module.exports = router;

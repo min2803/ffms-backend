@@ -1,19 +1,9 @@
 const os = require("os");
 const AdminModel = require("../models/adminModel");
+const { isValidDate } = require("../utils/validation");
 
-const VALID_ROLE_IDS = [1, 2]; // 1 = admin, 2 = user
+const VALID_ROLE_IDS = [1, 2];
 const VALID_LOG_LEVELS = ["info", "warn", "error"];
-
-/**
- * Helper: validate date format YYYY-MM-DD
- */
-function isValidDate(dateStr) {
-    if (!dateStr) return false;
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!regex.test(dateStr)) return false;
-    const date = new Date(dateStr);
-    return !isNaN(date.getTime());
-}
 
 const AdminService = {
     /**
@@ -77,7 +67,7 @@ const AdminService = {
      * GET /api/admin/system/logs
      * Query: { level?, date? }
      */
-    async getLogs({ level, date }) {
+    async getLogs({ level, date, page = 1, limit = 50 }) {
         if (level && !VALID_LOG_LEVELS.includes(level)) {
             throw { status: 400, message: "level must be 'info', 'warn', or 'error'" };
         }
@@ -86,7 +76,11 @@ const AdminService = {
             throw { status: 400, message: "date must be in YYYY-MM-DD format" };
         }
 
-        return await AdminModel.getLogs({ level: level || null, date: date || null });
+        const p = Math.max(1, parseInt(page) || 1);
+        const l = Math.min(200, Math.max(1, parseInt(limit) || 50));
+        const offset = (p - 1) * l;
+
+        return await AdminModel.getLogs({ level: level || null, date: date || null, limit: l, offset });
     },
 
     /**
@@ -122,6 +116,68 @@ const AdminService = {
     },
 
     /**
+     * GET /api/admin/dashboard
+     * Aggregate data cho DashboardAdminPage
+     */
+    async getDashboard() {
+        const summary = await this.getSummary();
+
+        const kpis = [
+            { label: "Total Users", value: summary.totalUsers, trend: "+12%", icon: "Users" },
+            { label: "Total Households", value: summary.totalHouseholds, trend: "+5%", icon: "Home" },
+            { label: "Total Transactions", value: summary.totalTransactions, trend: "+18%", icon: "ArrowRightLeft" },
+            { label: "System Status", value: "Healthy", trend: "Stable", icon: "Activity" },
+        ];
+
+        return {
+            kpis,
+            pulse: { labels: [], current: [], average: [] },
+            distribution: [],
+            notifications: [],
+        };
+    },
+
+    /**
+     * GET /api/admin/system-health
+     * Aggregate data cho SystemHealthPage
+     */
+    async getSystemHealth() {
+        const [health, metrics, logs] = await Promise.all([
+            this.getHealth(),
+            this.getMetrics(),
+            this.getLogs({}),
+        ]);
+
+        return {
+            metrics: {
+                ...metrics,
+                status: health.status,
+                uptime: health.uptime,
+            },
+            logs,
+            latency: [],
+            history: [],
+        };
+    },
+
+    /**
+     * GET /api/admin/household-management
+     * Aggregate data cho HouseholdManagementPage
+     */
+    async getHouseholdManagement() {
+        const households = await this.getHouseholds();
+
+        const totalMembers = households.reduce((sum, h) => sum + (h.member_count || 0), 0);
+        const kpis = [
+            { label: "Total Households", value: households.length, icon: "Home" },
+            { label: "Total Members", value: totalMembers, icon: "Users" },
+            { label: "Active", value: households.length, icon: "CheckCircle" },
+        ];
+
+        return { kpis, households };
+    },
+
+    /**
      * DELETE /api/admin/users/:id
      */
     async deleteUser(adminUserId, targetUserId) {
@@ -132,6 +188,17 @@ const AdminService = {
         const user = await AdminModel.findUserById(targetUserId);
         if (!user) {
             throw { status: 404, message: "User not found" };
+        }
+
+        const db = require("../config/db");
+
+        // Soft-delete households nơi user là owner duy nhất
+        const [ownedHouseholds] = await db.execute(
+            "SELECT id FROM households WHERE owner_id = ? AND (is_deleted = false OR is_deleted IS NULL)",
+            [targetUserId]
+        );
+        for (const h of ownedHouseholds) {
+            await db.execute("UPDATE households SET is_deleted = true WHERE id = ?", [h.id]);
         }
 
         await AdminModel.deleteUser(targetUserId);

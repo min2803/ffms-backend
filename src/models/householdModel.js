@@ -1,5 +1,7 @@
 const db = require("../config/db");
 
+const ALLOWED_UPDATE_FIELDS = ["name", "description"];
+
 const HouseholdModel = {
     /**
      * Tạo household mới
@@ -110,10 +112,25 @@ const HouseholdModel = {
     },
 
     /**
+     * Lấy danh sách tất cả thành viên trong household (kèm thông tin user)
+     */
+    async findMembersByHousehold(householdId) {
+        const [rows] = await db.execute(
+            `SELECT hm.id AS membership_id, hm.role, hm.joined_at,
+                    u.id AS user_id, u.name, u.email
+             FROM household_members hm
+             JOIN users u ON hm.user_id = u.id
+             WHERE hm.household_id = ?`,
+            [householdId]
+        );
+        return rows;
+    },
+
+    /**
      * Cập nhật thông tin household theo ID
      */
     async updateById(id, fields) {
-        const keys = Object.keys(fields);
+        const keys = Object.keys(fields).filter((k) => ALLOWED_UPDATE_FIELDS.includes(k));
         if (keys.length === 0) return this.findById(id);
 
         const setClause = keys.map((key) => `${key} = ?`).join(", ");

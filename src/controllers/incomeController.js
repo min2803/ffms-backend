@@ -1,195 +1,96 @@
 const IncomeService = require("../services/incomeService");
+const { handleRequest } = require("../utils/controllerHandler");
 
 const IncomeController = {
-    /**
-     * Tạo income mới
-     */
-    async createIncome(req, res) {
-        try {
-            const userId = req.user.userId;
-            const { householdId, amount, source, description, incomeDate } = req.body;
+    createIncome: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const householdId = req.householdId;
+        const { categoryId, amount, source, description, incomeDate } = req.body;
 
-            const income = await IncomeService.createIncome(userId, {
-                householdId,
-                amount,
-                source,
-                description,
-                incomeDate
-            });
+        const income = await IncomeService.createIncome(userId, {
+            householdId, categoryId, amount, source, description, incomeDate
+        });
 
-            return res.status(201).json({
-                success: true,
-                message: "Income created successfully",
-                data: income
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Create income error:", error);
-            return res.status(500).json({
+        return res.status(201).json({
+            success: true,
+            message: "Income created successfully",
+            data: income
+        });
+    }, "Create income"),
+
+    getIncomes: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const householdId = req.householdId;
+
+        if (isNaN(householdId)) {
+            return res.status(400).json({
                 success: false,
-                message: "Internal server error"
+                message: "Valid householdId query parameter is required"
             });
         }
-    },
 
-    /**
-     * Lấy danh sách incomes theo household
-     */
-    async getIncomes(req, res) {
-        try {
-            const userId = req.user.userId;
-            const householdId = req.householdId;
+        const incomes = await IncomeService.getIncomesByHousehold(userId, householdId);
 
-            if (isNaN(householdId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Valid householdId query parameter is required"
-                });
-            }
+        return res.status(200).json({
+            success: true,
+            message: "Incomes retrieved successfully",
+            data: incomes
+        });
+    }, "Get incomes"),
 
-            const incomes = await IncomeService.getIncomesByHousehold(userId, householdId);
+    getIncomeById: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const incomeId = parseInt(req.params.id);
 
-            return res.status(200).json({
-                success: true,
-                message: "Incomes retrieved successfully",
-                data: incomes
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Get incomes error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
+        if (isNaN(incomeId)) {
+            return res.status(400).json({ success: false, message: "Invalid income ID" });
         }
-    },
 
-    /**
-     * Lấy chi tiết income theo ID
-     */
-    async getIncomeById(req, res) {
-        try {
-            const userId = req.user.userId;
-            const incomeId = parseInt(req.params.id);
+        const income = await IncomeService.getIncomeById(userId, incomeId);
 
-            if (isNaN(incomeId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid income ID"
-                });
-            }
+        return res.status(200).json({
+            success: true,
+            message: "Income retrieved successfully",
+            data: income
+        });
+    }, "Get income by id"),
 
-            const income = await IncomeService.getIncomeById(userId, incomeId);
+    deleteIncome: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const incomeId = parseInt(req.params.id);
 
-            return res.status(200).json({
-                success: true,
-                message: "Income retrieved successfully",
-                data: income
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Get income by id error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
+        if (isNaN(incomeId)) {
+            return res.status(400).json({ success: false, message: "Invalid income ID" });
         }
-    },
 
-    /**
-     * Xóa income
-     */
-    async deleteIncome(req, res) {
-        try {
-            const userId = req.user.userId;
-            const incomeId = parseInt(req.params.id);
+        await IncomeService.deleteIncome(userId, incomeId);
 
-            if (isNaN(incomeId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid income ID"
-                });
-            }
+        return res.status(200).json({
+            success: true,
+            message: "Income deleted successfully"
+        });
+    }, "Delete income"),
 
-            await IncomeService.deleteIncome(userId, incomeId);
+    updateIncome: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const incomeId = parseInt(req.params.id);
 
-            return res.status(200).json({
-                success: true,
-                message: "Income deleted successfully"
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Delete income error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
+        if (isNaN(incomeId)) {
+            return res.status(400).json({ success: false, message: "Invalid income ID" });
         }
-    },
 
-    /**
-     * Cập nhật income
-     */
-    async updateIncome(req, res) {
-        try {
-            const userId = req.user.userId;
-            const incomeId = parseInt(req.params.id);
+        const { categoryId, amount, source, description, incomeDate } = req.body;
 
-            if (isNaN(incomeId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid income ID"
-                });
-            }
+        const income = await IncomeService.updateIncome(userId, incomeId, {
+            categoryId, amount, source, description, incomeDate
+        });
 
-            const { amount, source, description, incomeDate } = req.body;
-
-            const income = await IncomeService.updateIncome(userId, incomeId, {
-                amount,
-                source,
-                description,
-                incomeDate
-            });
-
-            return res.status(200).json({
-                success: true,
-                message: "Income updated successfully",
-                data: income
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Update income error:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error"
-            });
-        }
-    }
+        return res.status(200).json({
+            success: true,
+            message: "Income updated successfully",
+            data: income
+        });
+    }, "Update income")
 };
 
 module.exports = IncomeController;

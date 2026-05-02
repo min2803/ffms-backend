@@ -1,3 +1,4 @@
+const bcrypt = require("bcryptjs");
 const UserModel = require("../models/userModel");
 
 const UsersService = {
@@ -13,10 +14,6 @@ const UsersService = {
      * Lấy thông tin profile của user đang đăng nhập
      */
     async getProfile(userId) {
-        // Tự động kiểm tra và sửa lỗi dữ liệu (Household/Categories/Budget) nếu thiếu
-        const HouseholdService = require("./householdService");
-        await HouseholdService.ensureUserHasData(userId);
-
         const user = await UserModel.findById(userId);
         if (!user) {
             throw { status: 404, message: "User not found" };
@@ -30,10 +27,10 @@ const UsersService = {
     /**
      * Cập nhật thông tin profile của user đang đăng nhập (name, email)
      */
-    async updateProfile(userId, { name, email }) {
+    async updateProfile(userId, { name, email, full_name, phone_number, date_of_birth }) {
         // Kiểm tra có ít nhất một trường được cung cấp
-        if (!name && !email) {
-            throw { status: 400, message: "At least one field (name or email) is required" };
+        if (!name && !email && !full_name && phone_number === undefined && date_of_birth === undefined) {
+            throw { status: 400, message: "At least one field is required" };
         }
 
         // Validate email format nếu có
@@ -67,12 +64,56 @@ const UsersService = {
         const updateFields = {};
         if (name) updateFields.name = name;
         if (email) updateFields.email = email;
+        if (full_name !== undefined) updateFields.full_name = full_name || null;
+        if (phone_number !== undefined) updateFields.phone_number = phone_number || null;
+        if (date_of_birth !== undefined) updateFields.date_of_birth = date_of_birth || null;
 
         const updatedUser = await UserModel.updateById(userId, updateFields);
 
         // Loại bỏ password trước khi trả về
         const { password_hash, ...userWithoutPassword } = updatedUser;
         return userWithoutPassword;
+    },
+
+    /**
+     * Đổi mật khẩu của user đang đăng nhập
+     */
+    async changePassword(userId, { currentPassword, newPassword }) {
+        if (!currentPassword || !newPassword) {
+            throw { status: 400, message: "currentPassword and newPassword are required" };
+        }
+        if (newPassword.length < 6) {
+            throw { status: 400, message: "New password must be at least 6 characters" };
+        }
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            throw { status: 404, message: "User not found" };
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isMatch) {
+            throw { status: 401, message: "Current password is incorrect" };
+        }
+
+        const hashed = await bcrypt.hash(newPassword, 10);
+        await UserModel.updateById(userId, { password_hash: hashed });
+    },
+
+    /**
+     * Tìm user theo keyword (name/email) — cho invite member flow
+     */
+    async searchUsers(keyword) {
+        if (!keyword || keyword.trim().length === 0) {
+            throw { status: 400, message: "Search keyword is required" };
+        }
+        const trimmed = keyword.trim();
+        const isNumeric = /^\d+$/.test(trimmed);
+        // Allow single-digit UID search; require 2+ chars for name/email
+        if (!isNumeric && trimmed.length < 2) {
+            throw { status: 400, message: "Search keyword must be at least 2 characters" };
+        }
+        return await UserModel.searchByKeyword(trimmed);
     },
 
     /**

@@ -20,6 +20,13 @@ const TokenBlacklistModel = {
             [token]
         );
         return rows.length > 0;
+    },
+
+    /**
+     * Xóa các token đã hết hạn để giữ bảng không phình to
+     */
+    async deleteExpired() {
+        await db.execute("DELETE FROM token_blacklist WHERE expires_at < NOW()");
     }
 };
 

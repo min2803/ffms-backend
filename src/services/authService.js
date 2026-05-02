@@ -28,6 +28,16 @@ const generateRefreshToken = (user) => {
     );
 };
 
+const getResetSecret = () => process.env.JWT_RESET_SECRET || (process.env.JWT_SECRET + "-reset");
+
+const generateResetToken = (user) => {
+    return jwt.sign(
+        { userId: user.id, email: user.email, purpose: "password-reset" },
+        getResetSecret(),
+        { expiresIn: "15m" }
+    );
+};
+
 const AuthService = {
     /**
      * Đăng ký tài khoản mới
@@ -45,8 +55,8 @@ const AuthService = {
         }
 
         // Validate password length
-        if (password.length < 6) {
-            throw { status: 400, message: "Password must be at least 6 characters" };
+        if (password.length < 8) {
+            throw { status: 400, message: "Password must be at least 8 characters" };
         }
 
         // Kiểm tra email đã tồn tại chưa
@@ -70,20 +80,7 @@ const AuthService = {
                 password: hashedPassword
             }, connection);
 
-            // Tạo Personal Household cho user
-            const HouseholdModel = require("../models/householdModel");
-            const household = await HouseholdModel.create({
-                name: `${name}'s Personal Finance`,
-                description: "Default personal household",
-                ownerId: user.id
-            }, connection);
-            await HouseholdModel.addMember(household.id, user.id, "owner", connection);
-
-            // Cập nhật household_id cho user
-            await connection.execute("UPDATE users SET household_id = ? WHERE id = ?", [household.id, user.id]);
-
             await connection.commit();
-            user.household_id = household.id;
             return user;
         } catch (error) {
             await connection.rollback();
@@ -114,9 +111,9 @@ const AuthService = {
             throw { status: 401, message: "Invalid email or password" };
         }
 
-        // Tự động Bootstrap dữ liệu nếu user chưa có household (fix lỗi giao diện trống)
+        // Tự động tạo household + categories nếu user chưa có (không tạo dữ liệu mẫu)
         const HouseholdService = require("./householdService");
-        const household = await HouseholdService.ensureUserHasData(user.id);
+        const household = await HouseholdService.ensureUserHasHousehold(user.id);
         
         // Cập nhật lại thông tin household mới nhất vào user object trước khi tạo token
         user.household_id = household.id;
@@ -152,6 +149,8 @@ const AuthService = {
         if (decoded && decoded.exp) {
             const expiresAt = new Date(decoded.exp * 1000);
             await TokenBlacklistModel.add(accessToken, expiresAt);
+            // Dọn dẹp các token hết hạn — fire-and-forget
+            TokenBlacklistModel.deleteExpired().catch(() => {});
         }
 
         // Xóa refresh token nếu có
@@ -207,6 +206,58 @@ const AuthService = {
             accessToken: newAccessToken,
             refreshToken: newRefreshToken
         };
+    },
+
+    async forgotPassword(email) {
+        if (!email) {
+            throw { status: 400, message: "Email is required" };
+        }
+
+        const user = await UserModel.findByEmail(email);
+        if (!user) {
+            return { message: "If the email exists, a reset token has been generated" };
+        }
+
+        const resetToken = generateResetToken(user);
+
+        const response = { message: "If the email exists, a reset token has been generated" };
+        if (process.env.NODE_ENV !== "production") {
+            response.resetToken = resetToken;
+        }
+        return response;
+    },
+
+    async resetPassword(token, newPassword) {
+        if (!token || !newPassword) {
+            throw { status: 400, message: "Token and new password are required" };
+        }
+
+        if (newPassword.length < 8) {
+            throw { status: 400, message: "Password must be at least 8 characters" };
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, getResetSecret());
+        } catch {
+            throw { status: 400, message: "Invalid or expired reset token" };
+        }
+
+        if (decoded.purpose !== "password-reset") {
+            throw { status: 400, message: "Invalid reset token" };
+        }
+
+        const user = await UserModel.findById(decoded.userId);
+        if (!user) {
+            throw { status: 404, message: "User not found" };
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+        await UserModel.updateById(user.id, { password_hash: hashedPassword });
+
+        await RefreshTokenModel.deleteByUserId(user.id);
+
+        return { message: "Password reset successfully" };
     }
 };
 

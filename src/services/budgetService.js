@@ -62,6 +62,62 @@ const BudgetService = {
     },
 
     /**
+     * Lấy budget tháng hiện tại — dựa trên server time
+     * Trả về { budgets, month, year, hasNoBudget }
+     */
+    async getCurrentBudget(userId, householdId) {
+        if (!householdId) {
+            throw { status: 400, message: "householdId is required" };
+        }
+
+        // Kiểm tra household tồn tại
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        // Kiểm tra user là thành viên
+        const member = await HouseholdModel.findMember(householdId, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+
+        const budgets = await BudgetModel.findByHouseholdAndMonth(householdId, month, year);
+
+        if (budgets.length === 0) {
+            return { budgets: [], month, year, hasNoBudget: true };
+        }
+
+        // Tính usage percentage cho từng budget
+        const budgetsWithUsage = await Promise.all(
+            budgets.map(async (budget) => {
+                const totalExpense = await ExpenseModel.getTotalByCategory(
+                    householdId,
+                    budget.category_id,
+                    month,
+                    year
+                );
+
+                const usagePercentage = budget.amount > 0
+                    ? parseFloat(((totalExpense / budget.amount) * 100).toFixed(2))
+                    : 0;
+
+                return {
+                    ...budget,
+                    total_expense: totalExpense,
+                    usage_percentage: usagePercentage
+                };
+            })
+        );
+
+        return { budgets: budgetsWithUsage, month, year, hasNoBudget: false };
+    },
+
+    /**
      * Lấy danh sách budgets theo household và tháng/năm
      * Kèm theo tính toán usage percentage (%)
      */
@@ -114,6 +170,38 @@ const BudgetService = {
         );
 
         return budgetsWithUsage;
+    },
+
+    /**
+     * Lấy lịch sử budget theo tháng — sort giảm dần
+     */
+    async getBudgetHistory(userId, householdId, limit = 12, offset = 0) {
+        if (!householdId) {
+            throw { status: 400, message: "householdId is required" };
+        }
+
+        // Kiểm tra household tồn tại
+        const household = await HouseholdModel.findById(householdId);
+        if (!household) {
+            throw { status: 404, message: "Household not found" };
+        }
+
+        // Kiểm tra user là thành viên
+        const member = await HouseholdModel.findMember(householdId, userId);
+        if (!member) {
+            throw { status: 403, message: "You are not a member of this household" };
+        }
+
+        const history = await BudgetModel.findHistory(householdId, limit, offset);
+
+        return history.map(row => ({
+            month: row.month,
+            year: row.year,
+            label: `${String(row.month).padStart(2, "0")}/${row.year}`,
+            category_count: row.category_count,
+            total_amount: parseFloat(row.total_amount),
+            created_at: row.created_at
+        }));
     },
 
     /**

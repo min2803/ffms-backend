@@ -55,14 +55,10 @@ const verifyToken = async (req, res, next) => {
         // 6. Gắn thông tin user vào request
         req.user = decoded;
         
-        // Nếu token không có householdId, thử lấy từ DB (cho user mới bootstrap hoặc migration)
-        if (!decoded.householdId) {
-            const db = require("../config/db");
-            const [rows] = await db.execute("SELECT household_id FROM users WHERE id = ?", [decoded.userId]);
-            req.householdId = (rows.length > 0) ? rows[0].household_id : null;
-        } else {
-            req.householdId = decoded.householdId;
-        }
+        // Luôn lấy active household_id từ DB để đảm bảo đồng bộ khi user chuyển household
+        const db = require("../config/db");
+        const [rows] = await db.execute("SELECT household_id FROM users WHERE id = ?", [decoded.userId]);
+        req.householdId = (rows.length > 0) ? rows[0].household_id : null;
 
         next();
     } catch (error) {
@@ -128,4 +124,15 @@ const authorizeRole = (...roles) => {
     };
 };
 
-module.exports = { verifyToken, authorizeRole };
+const requireHousehold = (req, res, next) => {
+    if (!req.householdId) {
+        return res.status(400).json({
+            success: false,
+            code: "NO_HOUSEHOLD",
+            message: "No household associated with your account. Please log out and log in again."
+        });
+    }
+    next();
+};
+
+module.exports = { verifyToken, authorizeRole, requireHousehold };

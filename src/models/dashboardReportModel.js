@@ -47,14 +47,19 @@ const DashboardReportModel = {
      * Trend theo ngày (income hoặc expense)
      */
     async getTrendByDay(householdId, fromDate, toDate, type) {
-        const table = type === "income" ? "incomes" : "expenses";
-        const dateCol = type === "income" ? "income_date" : "expense_date";
+        const TABLE_MAP = { income: "incomes", expense: "expenses" };
+        const COL_MAP = { income: "income_date", expense: "expense_date" };
+        if (!TABLE_MAP[type]) {
+            throw { status: 400, message: "type must be 'income' or 'expense'" };
+        }
+        const table = TABLE_MAP[type];
+        const dateCol = COL_MAP[type];
 
         const [rows] = await db.execute(
-            `SELECT DATE(${dateCol}) AS date, SUM(amount) AS value
-             FROM ${table}
-             WHERE household_id = ? AND ${dateCol} BETWEEN ? AND ?
-             GROUP BY DATE(${dateCol})
+            `SELECT DATE(\`${dateCol}\`) AS date, SUM(amount) AS value
+             FROM \`${table}\`
+             WHERE household_id = ? AND \`${dateCol}\` BETWEEN ? AND ?
+             GROUP BY DATE(\`${dateCol}\`)
              ORDER BY date ASC`,
             [householdId, fromDate, toDate]
         );
@@ -65,14 +70,19 @@ const DashboardReportModel = {
      * Trend theo tháng (income hoặc expense)
      */
     async getTrendByMonth(householdId, fromDate, toDate, type) {
-        const table = type === "income" ? "incomes" : "expenses";
-        const dateCol = type === "income" ? "income_date" : "expense_date";
+        const TABLE_MAP = { income: "incomes", expense: "expenses" };
+        const COL_MAP = { income: "income_date", expense: "expense_date" };
+        if (!TABLE_MAP[type]) {
+            throw { status: 400, message: "type must be 'income' or 'expense'" };
+        }
+        const table = TABLE_MAP[type];
+        const dateCol = COL_MAP[type];
 
         const [rows] = await db.execute(
-            `SELECT DATE_FORMAT(${dateCol}, '%Y-%m') AS date, SUM(amount) AS value
-             FROM ${table}
-             WHERE household_id = ? AND ${dateCol} BETWEEN ? AND ?
-             GROUP BY DATE_FORMAT(${dateCol}, '%Y-%m')
+            `SELECT DATE_FORMAT(\`${dateCol}\`, '%Y-%m') AS date, SUM(amount) AS value
+             FROM \`${table}\`
+             WHERE household_id = ? AND \`${dateCol}\` BETWEEN ? AND ?
+             GROUP BY DATE_FORMAT(\`${dateCol}\`, '%Y-%m')
              ORDER BY date ASC`,
             [householdId, fromDate, toDate]
         );

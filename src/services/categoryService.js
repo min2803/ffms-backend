@@ -27,11 +27,27 @@ const CategoryService = {
     /**
      * Lấy tất cả categories của household
      */
-    async getAllCategories(householdId) {
+    async getAllCategories(householdId, type) {
         if (!householdId) {
             throw { status: 400, message: "householdId is required" };
         }
-        const categories = await CategoryModel.findAllByHousehold(householdId);
+        
+        let categories = await CategoryModel.findAllByHousehold(householdId);
+        
+        if (type) {
+            categories = categories.filter(c => c.type === type);
+            
+            // Nếu type là 'income', sắp xếp theo đúng thứ tự: Lương, Đầu tư, Khác
+            if (type === 'income') {
+                const order = { "Lương": 1, "Đầu tư": 2, "Khác": 3 };
+                categories.sort((a, b) => {
+                    const orderA = order[a.name] || 99;
+                    const orderB = order[b.name] || 99;
+                    return orderA - orderB;
+                });
+            }
+        }
+        
         return categories;
     },
 
@@ -49,7 +65,7 @@ const CategoryService = {
     /**
      * Cập nhật category
      */
-    async updateCategory(id, { name, type }) {
+    async updateCategory(id, householdId, { name, type }) {
         if (!name || name.trim().length === 0) {
             throw { status: 400, message: "Category name is required" };
         }
@@ -57,6 +73,11 @@ const CategoryService = {
         const category = await CategoryModel.findById(id);
         if (!category) {
             throw { status: 404, message: "Category not found" };
+        }
+
+        // Kiểm tra category thuộc household của requester
+        if (category.household_id !== householdId) {
+            throw { status: 403, message: "You do not have permission to update this category" };
         }
 
         // Kiểm tra trùng tên (trừ chính nó) trong cùng household
@@ -80,10 +101,15 @@ const CategoryService = {
     /**
      * Xóa category
      */
-    async deleteCategory(id) {
+    async deleteCategory(id, householdId) {
         const category = await CategoryModel.findById(id);
         if (!category) {
             throw { status: 404, message: "Category not found" };
+        }
+
+        // Kiểm tra category thuộc household của requester
+        if (category.household_id !== householdId) {
+            throw { status: 403, message: "You do not have permission to delete this category" };
         }
 
         await CategoryModel.deleteById(id);

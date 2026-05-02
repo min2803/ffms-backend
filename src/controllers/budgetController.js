@@ -1,162 +1,128 @@
 const BudgetService = require("../services/budgetService");
+const { handleRequest } = require("../utils/controllerHandler");
 
 const BudgetController = {
-    /**
-     * Tạo budget mới
-     */
-    async createBudget(req, res) {
-        try {
-            const userId = req.user.userId;
-            const { householdId, categoryId, month, year, amount } = req.body;
+    createBudget: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const { householdId, categoryId, month, year, amount } = req.body;
 
-            const budget = await BudgetService.createBudget(userId, {
-                householdId,
-                categoryId,
-                month,
-                year,
-                amount
-            });
+        const budget = await BudgetService.createBudget(userId, {
+            householdId, categoryId, month, year, amount
+        });
 
-            return res.status(201).json({
-                success: true,
-                message: "Budget created successfully",
-                data: budget
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Create budget error:", error);
-            return res.status(500).json({
+        return res.status(201).json({
+            success: true,
+            message: "Budget created successfully",
+            data: budget
+        });
+    }, "Create budget"),
+
+    getCurrentBudget: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const householdId = req.householdId;
+
+        if (isNaN(householdId)) {
+            return res.status(400).json({
                 success: false,
-                message: "Internal server error"
+                message: "Valid householdId is required"
             });
         }
-    },
 
-    /**
-     * Lấy danh sách budgets theo tháng (kèm usage percentage)
-     */
-    async getBudgets(req, res) {
-        try {
-            const userId = req.user.userId;
-            const householdId = req.householdId;
-            const month = parseInt(req.query.month);
-            const year = parseInt(req.query.year) || new Date().getFullYear();
+        const result = await BudgetService.getCurrentBudget(userId, householdId);
 
-            if (isNaN(householdId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Valid householdId query parameter is required"
-                });
-            }
+        return res.status(200).json({
+            success: true,
+            message: result.hasNoBudget
+                ? "No budget set for current month"
+                : "Current budget retrieved successfully",
+            data: result
+        });
+    }, "Get current budget"),
 
-            if (isNaN(month) || month < 1 || month > 12) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Valid month query parameter is required (1-12)"
-                });
-            }
+    getBudgetHistory: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const householdId = req.householdId;
+        const limit = parseInt(req.query.limit) || 12;
+        const offset = parseInt(req.query.offset) || 0;
 
-            const budgets = await BudgetService.getBudgetsByMonth(userId, householdId, month, year);
-
-            return res.status(200).json({
-                success: true,
-                message: "Budgets retrieved successfully",
-                data: budgets
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Get budgets error:", error);
-            return res.status(500).json({
+        if (isNaN(householdId)) {
+            return res.status(400).json({
                 success: false,
-                message: "Internal server error"
+                message: "Valid householdId is required"
             });
         }
-    },
 
-    /**
-     * Cập nhật budget (amount)
-     */
-    async updateBudget(req, res) {
-        try {
-            const userId = req.user.userId;
-            const budgetId = parseInt(req.params.id);
+        const history = await BudgetService.getBudgetHistory(userId, householdId, limit, offset);
 
-            if (isNaN(budgetId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid budget ID"
-                });
-            }
+        return res.status(200).json({
+            success: true,
+            message: "Budget history retrieved successfully",
+            data: history
+        });
+    }, "Get budget history"),
 
-            const { amount } = req.body;
+    getBudgets: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const householdId = req.householdId;
+        const month = parseInt(req.query.month);
+        const year = parseInt(req.query.year) || new Date().getFullYear();
 
-            const budget = await BudgetService.updateBudget(userId, budgetId, { amount });
-
-            return res.status(200).json({
-                success: true,
-                message: "Budget updated successfully",
-                data: budget
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Update budget error:", error);
-            return res.status(500).json({
+        if (isNaN(householdId)) {
+            return res.status(400).json({
                 success: false,
-                message: "Internal server error"
+                message: "Valid householdId query parameter is required"
             });
         }
-    },
 
-    /**
-     * Xóa budget
-     */
-    async deleteBudget(req, res) {
-        try {
-            const userId = req.user.userId;
-            const budgetId = parseInt(req.params.id);
-
-            if (isNaN(budgetId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid budget ID"
-                });
-            }
-
-            await BudgetService.deleteBudget(userId, budgetId);
-
-            return res.status(200).json({
-                success: true,
-                message: "Budget deleted successfully"
-            });
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-            console.error("Delete budget error:", error);
-            return res.status(500).json({
+        if (isNaN(month) || month < 1 || month > 12) {
+            return res.status(400).json({
                 success: false,
-                message: "Internal server error"
+                message: "Valid month query parameter is required (1-12)"
             });
         }
-    }
+
+        const budgets = await BudgetService.getBudgetsByMonth(userId, householdId, month, year);
+
+        return res.status(200).json({
+            success: true,
+            message: "Budgets retrieved successfully",
+            data: budgets
+        });
+    }, "Get budgets"),
+
+    updateBudget: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const budgetId = parseInt(req.params.id);
+
+        if (isNaN(budgetId)) {
+            return res.status(400).json({ success: false, message: "Invalid budget ID" });
+        }
+
+        const { amount } = req.body;
+        const budget = await BudgetService.updateBudget(userId, budgetId, { amount });
+
+        return res.status(200).json({
+            success: true,
+            message: "Budget updated successfully",
+            data: budget
+        });
+    }, "Update budget"),
+
+    deleteBudget: handleRequest(async (req, res) => {
+        const userId = req.user.userId;
+        const budgetId = parseInt(req.params.id);
+
+        if (isNaN(budgetId)) {
+            return res.status(400).json({ success: false, message: "Invalid budget ID" });
+        }
+
+        await BudgetService.deleteBudget(userId, budgetId);
+
+        return res.status(200).json({
+            success: true,
+            message: "Budget deleted successfully"
+        });
+    }, "Delete budget")
 };
 
 module.exports = BudgetController;

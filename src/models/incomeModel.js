@@ -4,17 +4,18 @@ const IncomeModel = {
     /**
      * Tạo income mới
      */
-    async create({ householdId, userId, amount, source, description, incomeDate }) {
+    async create({ householdId, userId, categoryId, amount, source, description, incomeDate }) {
         const [result] = await db.execute(
-            `INSERT INTO incomes (household_id, user_id, amount, source, description, income_date)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [householdId, userId, amount, source, description || null, incomeDate]
+            `INSERT INTO incomes (household_id, user_id, category_id, amount, source, description, income_date)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [householdId, userId, categoryId || null, amount, source, description || null, incomeDate]
         );
 
         return {
             id: result.insertId,
             household_id: householdId,
             user_id: userId,
+            category_id: categoryId || null,
             amount,
             source,
             description: description || null,
@@ -28,11 +29,12 @@ const IncomeModel = {
      */
     async findByHouseholdId(householdId) {
         const [rows] = await db.execute(
-            `SELECT i.*, u.name AS user_name, u.email AS user_email
+            `SELECT i.*, u.name AS user_name, u.email AS user_email, c.name AS category_name
              FROM incomes i
              JOIN users u ON i.user_id = u.id
+             LEFT JOIN categories c ON i.category_id = c.id
              WHERE i.household_id = ?
-             ORDER BY i.income_date DESC`,
+             ORDER BY i.income_date DESC, i.created_at DESC`,
             [householdId]
         );
         return rows;
@@ -54,9 +56,10 @@ const IncomeModel = {
      */
     async findByIdWithDetails(id) {
         const [rows] = await db.execute(
-            `SELECT i.*, u.name AS user_name, u.email AS user_email
+            `SELECT i.*, u.name AS user_name, u.email AS user_email, c.name AS category_name
              FROM incomes i
              JOIN users u ON i.user_id = u.id
+             LEFT JOIN categories c ON i.category_id = c.id
              WHERE i.id = ?`,
             [id]
         );
@@ -66,11 +69,11 @@ const IncomeModel = {
     /**
      * Cập nhật income theo ID
      */
-    async updateById(id, { amount, source, description, incomeDate }) {
+    async updateById(id, { categoryId, amount, source, description, incomeDate }) {
         const [result] = await db.execute(
-            `UPDATE incomes SET amount = ?, source = ?, description = ?, income_date = ?
+            `UPDATE incomes SET category_id = ?, amount = ?, source = ?, description = ?, income_date = ?
              WHERE id = ?`,
-            [amount, source, description || null, incomeDate, id]
+            [categoryId || null, amount, source, description || null, incomeDate, id]
         );
         return result.affectedRows > 0;
     },

@@ -1,57 +1,8 @@
 const DashboardReportModel = require("../models/dashboardReportModel");
-const HouseholdModel = require("../models/householdModel");
-
-/**
- * Helper: convert month/year thành khoảng date (fromDate, toDate)
- */
-function getMonthDateRange(month, year) {
-    const m = parseInt(month);
-    const y = parseInt(year);
-
-    if (isNaN(m) || isNaN(y) || m < 1 || m > 12 || y < 1900 || y > 2100) {
-        return null;
-    }
-
-    const fromDate = `${y}-${String(m).padStart(2, "0")}-01`;
-    // Ngày cuối tháng
-    const lastDay = new Date(y, m, 0).getDate();
-    const toDate = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
-    return { fromDate, toDate };
-}
-
-/**
- * Helper: validate date format YYYY-MM-DD
- */
-function isValidDate(dateStr) {
-    if (!dateStr) return false;
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!regex.test(dateStr)) return false;
-    const date = new Date(dateStr);
-    return !isNaN(date.getTime());
-}
-
-/**
- * Helper: verify household membership
- */
-async function verifyMembership(householdId, userId) {
-    const household = await HouseholdModel.findById(householdId);
-    if (!household) {
-        throw { status: 404, message: "Household not found" };
-    }
-
-    const member = await HouseholdModel.findMember(householdId, userId);
-    if (!member) {
-        throw { status: 403, message: "You are not a member of this household" };
-    }
-}
+const { getMonthDateRange, isValidDate } = require("../utils/validation");
+const { verifyMembership } = require("../utils/membership");
 
 const DashboardService = {
-    /**
-     * GET /api/dashboard/summary
-     * Query: { householdId, month?, year? }
-     * → { totalIncome, totalExpense, balance }
-     */
     async getSummary(userId, householdId, { month, year }) {
         if (!householdId) {
             throw { status: 400, message: "householdId is required" };
@@ -59,7 +10,6 @@ const DashboardService = {
 
         await verifyMembership(householdId, userId);
 
-        // Default: tháng/năm hiện tại
         const now = new Date();
         const m = month || (now.getMonth() + 1);
         const y = year || now.getFullYear();
@@ -71,8 +21,7 @@ const DashboardService = {
 
         const totalIncome = await DashboardReportModel.getTotalIncome(householdId, range.fromDate, range.toDate);
         const totalExpense = await DashboardReportModel.getTotalExpense(householdId, range.fromDate, range.toDate);
-        
-        // Lấy trend cho 6 tháng gần nhất để vẽ chart
+
         const sixMonthsAgo = new Date(y, m - 6, 1);
         const trendFromDate = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
         const incomeTrend = await DashboardReportModel.getTrendByMonth(householdId, trendFromDate, range.toDate, "income");
@@ -87,66 +36,79 @@ const DashboardService = {
             })
         };
 
-        // Lấy activities gần nhất
         const incomes = await DashboardReportModel.getIncomeDetailList(householdId, range.fromDate, range.toDate);
         const expenses = await DashboardReportModel.getExpenseDetailList(householdId, range.fromDate, range.toDate);
-        
+
         const activities = [
             ...incomes.map(i => ({ name: i.source, category: "Income", time: i.income_date, amount: parseFloat(i.amount) })),
             ...expenses.map(e => ({ name: e.description || e.category_name, category: e.category_name, time: e.expense_date, amount: -parseFloat(e.amount) }))
         ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5);
 
-        // Cấu trúc KPI Cards (Frontend sẽ map icon dựa trên title hoặc type)
+        const formatVND = (num) => num.toLocaleString("vi-VN") + " VND";
+
         const kpiCards = [
-            { 
-                title: "Total Income", 
-                value: `$${totalIncome.toLocaleString()}`, 
-                iconName: "TrendingUp", 
+            {
+                title: "Total Income",
+                value: formatVND(totalIncome),
+                iconName: "TrendingUp",
                 iconBg: "bg-emerald-50 text-emerald-600",
                 highlighted: true,
                 badge: "Month Overview"
             },
-            { 
-                title: "Total Expense", 
-                value: `$${totalExpense.toLocaleString()}`, 
-                iconName: "TrendingDown", 
+            {
+                title: "Total Expense",
+                value: formatVND(totalExpense),
+                iconName: "TrendingDown",
                 iconBg: "bg-rose-50 text-rose-600",
                 highlighted: false
             },
-            { 
-                title: "Net Balance", 
-                value: `$${(totalIncome - totalExpense).toLocaleString()}`, 
-                iconName: "Zap", 
+            {
+                title: "Net Balance",
+                value: formatVND(totalIncome - totalExpense),
+                iconName: "Zap",
                 iconBg: "bg-blue-50 text-blue-600",
                 highlighted: false
             }
         ];
 
+        const balance = totalIncome - totalExpense;
+        const savingsRate = totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(1) : 0;
+
+        const aiInsights = [
+            {
+                id: 1,
+                title: "Spending Pattern",
+                description: totalExpense > totalIncome
+                    ? "Your expenses exceed income this month. Consider reviewing non-essential spending."
+                    : `You are saving ${savingsRate}% of your income. Keep up the good financial discipline!`,
+                type: totalExpense > totalIncome ? "warning" : "positive"
+            },
+            {
+                id: 2,
+                title: "Budget Tip",
+                description: "Track daily expenses consistently to identify areas where you can cut costs.",
+                type: "info"
+            }
+        ];
+
+        const assetAllocation = totalIncome > 0 ? [
+            { name: "Expenses", value: Math.min(totalExpense, totalIncome), percentage: Math.min(((totalExpense / totalIncome) * 100), 100).toFixed(1) },
+            { name: "Savings", value: Math.max(balance, 0), percentage: Math.max(savingsRate, 0) }
+        ] : [];
+
         return {
             totalIncome,
             totalExpense,
-            balance: totalIncome - totalExpense,
+            balance,
             kpiCards,
             flowData,
             months,
             activities,
-            aiInsights: [
-                { type: "tip", message: "Chi tiêu cho ăn uống tăng 15% so với tháng trước." },
-                { type: "success", message: "Bạn đã tiết kiệm được $500 trong tháng này!" }
-            ],
-            assetAllocation: [
-                { name: "Savings", value: 40, color: "bg-blue-500" },
-                { name: "Investment", value: 30, color: "bg-emerald-500" },
-                { name: "Cash", value: 30, color: "bg-orange-500" }
-            ]
+            aiInsights,
+            assetAllocation
         };
     },
 
-    /**
-     * GET /api/dashboard/compare
-     * Query: { householdId, fromDate, toDate }
-     * → { income, expense }
-     */
     async getCompare(userId, householdId, { fromDate, toDate }) {
         if (!householdId) {
             throw { status: 400, message: "householdId is required" };
