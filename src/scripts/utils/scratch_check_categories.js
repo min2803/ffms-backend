@@ -1,5 +1,5 @@
-require('dotenv').config();
-const db = require('./src/config/db');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+const db = require('../../config/db');
 db.execute('SELECT * FROM categories WHERE type="income"').then(([r]) => {
   console.log(r);
   process.exit();

@@ -35,6 +35,8 @@ const AdminModel = {
      * Tìm kiếm users với pagination
      */
     async searchUsers(search, limit, offset) {
+        const safeLimit = parseInt(limit, 10) || 10;
+        const safeOffset = parseInt(offset, 10) || 0;
         let query = `SELECT u.id, u.name, u.email, u.role_id, r.role_name, u.created_at, u.updated_at 
                      FROM users u 
                      LEFT JOIN roles r ON u.role_id = r.id`;
@@ -46,8 +48,7 @@ const AdminModel = {
             params.push(searchPattern, searchPattern);
         }
 
-        query += " ORDER BY u.created_at DESC LIMIT ? OFFSET ?";
-        params.push(limit, offset);
+        query += ` ORDER BY u.created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
 
         const [rows] = await db.execute(query, params);
         return rows;
@@ -171,6 +172,8 @@ const AdminModel = {
      * Lấy system logs với filter
      */
     async getLogs({ level, date, limit = 50, offset = 0 }) {
+        const safeLimit = parseInt(limit, 10) || 50;
+        const safeOffset = parseInt(offset, 10) || 0;
         let query = "SELECT * FROM system_logs WHERE 1=1";
         const params = [];
 
@@ -184,8 +187,7 @@ const AdminModel = {
             params.push(date);
         }
 
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-        params.push(limit, offset);
+        query += ` ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
 
         const [rows] = await db.execute(query, params);
         return rows;

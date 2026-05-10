@@ -1,12 +1,12 @@
-require('dotenv').config();
-const DashboardService = require('./src/services/dashboardService');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+const DashboardService = require('../../services/dashboardService');
 
 async function test() {
     try {
         console.log("Đang kiểm tra Dashboard API Response...");
         
         // Giả lập userId 1 và householdId 1 (hoặc lấy từ DB)
-        const db = require('./src/config/db');
+        const db = require('../../config/db');
         const [users] = await db.execute("SELECT id, household_id FROM users LIMIT 1");
         if (users.length === 0) {
             console.log("No users found");

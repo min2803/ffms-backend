@@ -4,7 +4,8 @@ const { handleRequest } = require("../utils/controllerHandler");
 const BudgetController = {
     createBudget: handleRequest(async (req, res) => {
         const userId = req.user.userId;
-        const { householdId, categoryId, month, year, amount } = req.body;
+        const { categoryId, month, year, amount } = req.body;
+        const householdId = req.body.householdId || req.householdId;
 
         const budget = await BudgetService.createBudget(userId, {
             householdId, categoryId, month, year, amount

@@ -1,6 +1,30 @@
 const ExpenseModel = require("../models/expenseModel");
 const CategoryModel = require("../models/categoryModel");
 const HouseholdModel = require("../models/householdModel");
+const BudgetModel = require("../models/budgetModel");
+const NotificationService = require("./notificationService");
+
+const _checkBudgetAndNotify = async (userId, householdId, categoryId, categoryName, expenseDate) => {
+    try {
+        const dateObj = new Date(expenseDate);
+        const month = dateObj.getMonth() + 1;
+        const year = dateObj.getFullYear();
+
+        const budget = await BudgetModel.findExisting(householdId, categoryId, month, year);
+        if (!budget) return;
+
+        const totalExpense = await ExpenseModel.getTotalByCategory(householdId, categoryId, month, year);
+        
+        if (totalExpense > budget.amount) {
+            // Create notification
+            const formatter = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+            const message = `Cảnh báo: Bạn đã chi tiêu ${formatter.format(totalExpense)} cho mục "${categoryName}", vượt qua ngân sách ${formatter.format(budget.amount)} của tháng ${month}/${year}.`;
+            await NotificationService.create(userId, "budget_warning", message);
+        }
+    } catch (err) {
+        console.error("Error in _checkBudgetAndNotify:", err);
+    }
+};
 
 const ExpenseService = {
     /**
@@ -48,6 +72,9 @@ const ExpenseService = {
             description: description ? description.trim() : null,
             expenseDate
         });
+
+        // Kiểm tra vượt ngân sách và thông báo (chạy ngầm không block)
+        _checkBudgetAndNotify(userId, householdId, categoryId, category.name, expenseDate);
 
         return expense;
     },
@@ -148,6 +175,9 @@ const ExpenseService = {
             description: description ? description.trim() : null,
             expenseDate
         });
+
+        // Kiểm tra vượt ngân sách và thông báo
+        _checkBudgetAndNotify(userId, expense.household_id, categoryId, category.name, expenseDate);
 
         return {
             id: expenseId,

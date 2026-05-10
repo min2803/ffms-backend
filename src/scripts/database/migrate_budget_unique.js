@@ -2,8 +2,8 @@
  * Migration: Add UNIQUE constraint and created_at to budgets table
  * Run: node migrate_budget_unique.js
  */
-require("dotenv").config();
-const db = require("./src/config/db");
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+const db = require('../../config/db');
 
 async function migrate() {
     console.log("=== Budget Table Migration ===\n");

@@ -15,11 +15,19 @@ const reportRoutes = require("./routes/reportRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const invitationRoutes = require("./routes/invitationRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: function (origin, callback) {
+        const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',');
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -48,6 +56,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/invitations", invitationRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.use((err, req, res, next) => {
     console.error("Unhandled error:", err);

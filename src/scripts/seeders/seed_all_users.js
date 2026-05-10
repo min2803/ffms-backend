@@ -1,5 +1,5 @@
-require('dotenv').config();
-const db = require('./src/config/db');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+const db = require('../../config/db');
 
 async function seedAll() {
     try {

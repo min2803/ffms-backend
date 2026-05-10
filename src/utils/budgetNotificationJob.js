@@ -1,12 +1,16 @@
 /**
  * Budget Notification Job
  * Chạy mỗi ngày kiểm tra:
- * 1. 2 ngày trước cuối tháng → nhắc user kiểm tra chi tiêu
- * 2. Ngày 1 tháng mới → nhắc tạo ngân sách nếu chưa có
+ * 1. Chi tiêu vượt ngân sách → tạo notification + gửi email
+ * 2. 2 ngày trước cuối tháng → nhắc user kiểm tra chi tiêu
+ * 3. Ngày 1 tháng mới → nhắc tạo ngân sách nếu chưa có
+ * 4. AI dự đoán → cảnh báo nếu status = warning/abnormal
  */
 const db = require("../config/db");
 const BudgetModel = require("../models/budgetModel");
 const NotificationModel = require("../models/notificationModel");
+const EmailService = require("../services/emailService");
+const AiService = require("../services/aiService");
 
 const JOB_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -52,6 +56,117 @@ async function getAllActiveHouseholds() {
 }
 
 /**
+ * Lấy user info (name, email)
+ */
+async function getUserInfo(userId) {
+    const [rows] = await db.execute(
+        "SELECT id, name, email FROM users WHERE id = ?",
+        [userId]
+    );
+    return rows.length > 0 ? rows[0] : null;
+}
+
+/**
+ * Lấy tổng chi tiêu tháng hiện tại cho household
+ */
+async function getMonthlyExpenseTotal(householdId, month, year) {
+    const [rows] = await db.execute(
+        `SELECT COALESCE(SUM(amount), 0) AS total
+         FROM expenses
+         WHERE household_id = ? AND MONTH(expense_date) = ? AND YEAR(expense_date) = ?`,
+        [householdId, month, year]
+    );
+    return parseFloat(rows[0].total);
+}
+
+/**
+ * Lấy tổng ngân sách tháng hiện tại cho household
+ */
+async function getMonthlyBudgetTotal(householdId, month, year) {
+    const [rows] = await db.execute(
+        `SELECT COALESCE(SUM(amount), 0) AS total
+         FROM budgets
+         WHERE household_id = ? AND month = ? AND year = ?`,
+        [householdId, month, year]
+    );
+    return parseFloat(rows[0].total);
+}
+
+/**
+ * Case mới: Kiểm tra chi tiêu vượt ngân sách + gửi email + AI prediction
+ */
+async function checkBudgetOverspend(householdId, month, year) {
+    const totalExpense = await getMonthlyExpenseTotal(householdId, month, year);
+    const totalBudget = await getMonthlyBudgetTotal(householdId, month, year);
+
+    // Bỏ qua nếu chưa set budget hoặc chưa có chi tiêu
+    if (totalBudget <= 0 || totalExpense <= 0) return 0;
+
+    const percentage = parseFloat(((totalExpense / totalBudget) * 100).toFixed(1));
+
+    // Chỉ cảnh báo khi vượt 80% budget
+    if (percentage < 80) return 0;
+
+    // Lấy AI prediction (nếu service khả dụng)
+    let aiData = null;
+    try {
+        aiData = await AiService.getPrediction(householdId);
+    } catch {
+        // AI service unavailable — không ảnh hưởng logic chính
+    }
+
+    const userIds = await getHouseholdUserIds(householdId);
+    let sent = 0;
+
+    // Xác định loại cảnh báo
+    let title, message, status;
+    if (percentage >= 100) {
+        title = "🔴 Vượt ngân sách!";
+        message = `Chi tiêu tháng ${month} đã vượt ngân sách (${percentage}%). Tổng chi: ${totalExpense.toLocaleString("vi-VN")}₫ / Ngân sách: ${totalBudget.toLocaleString("vi-VN")}₫`;
+        status = "abnormal";
+    } else if (percentage >= 90) {
+        title = "⚠️ Sắp vượt ngân sách";
+        message = `Chi tiêu tháng ${month} đã đạt ${percentage}% ngân sách. Hãy cân nhắc giảm chi tiêu.`;
+        status = "warning";
+    } else {
+        title = "💡 Nhắc nhở chi tiêu";
+        message = `Chi tiêu tháng ${month} đã đạt ${percentage}% ngân sách. Tiếp tục theo dõi!`;
+        status = "warning";
+    }
+
+    // Thêm thông tin AI nếu có
+    if (aiData && (aiData.status === "warning" || aiData.status === "abnormal")) {
+        message += ` | AI dự đoán: ${Number(aiData.predicted).toLocaleString("vi-VN")}₫ tháng tới (${aiData.message})`;
+    }
+
+    for (const uid of userIds) {
+        const exists = await hasNotificationToday(uid, title);
+        if (exists) continue;
+
+        // Tạo notification in-app
+        await NotificationModel.create(uid, title, message);
+        sent++;
+
+        // Gửi email cảnh báo (chỉ khi vượt 90%+)
+        if (percentage >= 90) {
+            const user = await getUserInfo(uid);
+            if (user && user.email) {
+                await EmailService.sendBudgetWarningEmail(user.email, user.name, {
+                    totalExpense,
+                    totalBudget,
+                    percentage,
+                    predicted: aiData?.predicted || null,
+                    suggestion: aiData?.suggestion || "Hãy kiểm tra và cắt giảm các khoản chi không cần thiết.",
+                    status
+                });
+            }
+        }
+    }
+
+    return sent;
+}
+
+/**
  * Job chính — chạy mỗi ngày
  */
 async function runBudgetNotificationJob() {
@@ -64,6 +179,16 @@ async function runBudgetNotificationJob() {
         const daysUntilEnd = daysInMonth - day;
 
         console.log(`[BudgetNotif] Running — ${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} (${daysUntilEnd} days until month end)`);
+
+        // === Case 0: Kiểm tra chi tiêu vượt ngân sách (HÀNG NGÀY) ===
+        const allHouseholds = await getAllActiveHouseholds();
+        let overspendSent = 0;
+        for (const hhId of allHouseholds) {
+            overspendSent += await checkBudgetOverspend(hhId, month, year);
+        }
+        if (overspendSent > 0) {
+            console.log(`[BudgetNotif] Budget overspend alerts sent: ${overspendSent}`);
+        }
 
         // === Case 1: 2 ngày trước cuối tháng → nhắc kiểm tra chi tiêu ===
         if (daysUntilEnd <= 2 && daysUntilEnd >= 0) {
@@ -91,8 +216,6 @@ async function runBudgetNotificationJob() {
         if (day === 1) {
             const title = "Thiết lập ngân sách";
             const message = `Tháng ${month}/${year} đã bắt đầu. Hãy thiết lập ngân sách cho tháng mới!`;
-
-            const allHouseholds = await getAllActiveHouseholds();
 
             let sent = 0;
             for (const hhId of allHouseholds) {

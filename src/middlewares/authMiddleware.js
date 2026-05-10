@@ -58,7 +58,26 @@ const verifyToken = async (req, res, next) => {
         // Luôn lấy active household_id từ DB để đảm bảo đồng bộ khi user chuyển household
         const db = require("../config/db");
         const [rows] = await db.execute("SELECT household_id FROM users WHERE id = ?", [decoded.userId]);
-        req.householdId = (rows.length > 0) ? rows[0].household_id : null;
+        let householdId = (rows.length > 0) ? rows[0].household_id : null;
+
+        // Fallback: Nếu users.household_id là null (user được add vào household nhưng chưa update),
+        // tìm household đầu tiên từ household_members và tự động sync lại users.household_id
+        if (!householdId) {
+            const [memberRows] = await db.execute(
+                `SELECT hm.household_id FROM household_members hm
+                 JOIN households h ON hm.household_id = h.id
+                 WHERE hm.user_id = ? AND (h.is_deleted = false OR h.is_deleted IS NULL)
+                 ORDER BY hm.joined_at DESC LIMIT 1`,
+                [decoded.userId]
+            );
+            if (memberRows.length > 0) {
+                householdId = memberRows[0].household_id;
+                // Sync lại users.household_id để lần sau không phải fallback nữa
+                await db.execute("UPDATE users SET household_id = ? WHERE id = ?", [householdId, decoded.userId]);
+            }
+        }
+
+        req.householdId = householdId;
 
         next();
     } catch (error) {

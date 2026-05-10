@@ -1,9 +1,9 @@
-require('dotenv').config();
-const db = require('./src/config/db');
-const IncomeModel = require('./src/models/incomeModel');
-const ExpenseModel = require('./src/models/expenseModel');
-const CategoryModel = require('./src/models/categoryModel');
-const HouseholdModel = require('./src/models/householdModel');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+const db = require('../../config/db');
+const IncomeModel = require('../../models/incomeModel');
+const ExpenseModel = require('../../models/expenseModel');
+const CategoryModel = require('../../models/categoryModel');
+const HouseholdModel = require('../../models/householdModel');
 
 async function seed() {
     try {

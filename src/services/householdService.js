@@ -82,6 +82,13 @@ const HouseholdService = {
         // Thêm thành viên
         const membership = await HouseholdModel.addMember(householdId, targetUserId, "member");
 
+        // Nếu user chưa có household_id active, tự động gán household mới được thêm vào
+        const db = require("../config/db");
+        const [userRows] = await db.execute("SELECT household_id FROM users WHERE id = ?", [targetUserId]);
+        if (userRows.length > 0 && !userRows[0].household_id) {
+            await db.execute("UPDATE users SET household_id = ? WHERE id = ?", [householdId, targetUserId]);
+        }
+
         // Auto notification
         await NotificationService.create(
             targetUserId,
@@ -212,6 +219,13 @@ const HouseholdService = {
 
         // Thêm thành viên với role mặc định là "member"
         const membership = await HouseholdModel.addMember(householdId, targetUserId, "member");
+
+        // Nếu user chưa có household_id active, tự động gán household mới được mời vào
+        const db = require("../config/db");
+        const [userRows] = await db.execute("SELECT household_id FROM users WHERE id = ?", [targetUserId]);
+        if (userRows.length > 0 && !userRows[0].household_id) {
+            await db.execute("UPDATE users SET household_id = ? WHERE id = ?", [householdId, targetUserId]);
+        }
 
         // Auto notification
         await NotificationService.create(

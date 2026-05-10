@@ -51,6 +51,9 @@ const BudgetModel = {
      * Lấy lịch sử budgets — nhóm theo tháng/năm, sort giảm dần
      */
     async findHistory(householdId, limit = 12, offset = 0) {
+        // Cast to integers to avoid MySQL2 prepared statement issues with LIMIT/OFFSET
+        const safeLimit = parseInt(limit, 10) || 12;
+        const safeOffset = parseInt(offset, 10) || 0;
         const [rows] = await db.execute(
             `SELECT b.month, b.year,
                     COUNT(b.id) AS category_count,
@@ -60,8 +63,8 @@ const BudgetModel = {
              WHERE b.household_id = ?
              GROUP BY b.month, b.year
              ORDER BY b.year DESC, b.month DESC
-             LIMIT ? OFFSET ?`,
-            [householdId, limit, offset]
+             LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+            [householdId]
         );
         return rows;
     },
